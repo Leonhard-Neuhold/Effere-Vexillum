@@ -4,6 +4,8 @@
 
 <MudText Typo="Typo.h4" GutterBottom="true">Lobby @LobbyId</MudText>
 
+<MudAlert Severity="Severity.Info">Join Code: @lobby?.UniqueJoinLink</MudAlert>
+
 @if (lobby == null)
 {
     <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
@@ -51,5 +53,6 @@ else
     {
         public Guid Id { get; set; }
         public List<string> JoinedPlayers { get; set; } = new();
+        public string UniqueJoinLink { get; set; } = string.Empty;
     }
 }

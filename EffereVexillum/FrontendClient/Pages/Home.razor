@@ -33,6 +33,11 @@
 @code {
     private string JoinCode { get; set; } = "";
 
+    public class JoinResponse
+    {
+        public string Url { get; set; } = "";
+    }
+
     private async Task JoinLobby()
     {
         if (!string.IsNullOrWhiteSpace(JoinCode))
@@ -40,11 +45,12 @@
             var response = await Http.GetAsync($"/join/{JoinCode}");
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<JoinLobbyResponse>();
-                if (result != null) Nav.NavigateTo($"/lobby/{result.Id}");
+                var result = await response.Content.ReadFromJsonAsync<JoinResponse>();
+                if (!string.IsNullOrEmpty(result?.Url))
+                {
+                    Nav.NavigateTo(result.Url);
+                }
             }
         }
     }
-    
-    public record JoinLobbyResponse(Guid Id);
 }

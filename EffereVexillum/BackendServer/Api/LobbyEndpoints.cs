@@ -201,7 +201,7 @@ public static class LobbyEndpoints
                 await hubContext.Clients.Group(lobby.Id.ToString()).SendAsync("PlayerJoined", userId);
             }
 
-            return Results.Redirect(lobby.UniqueLobbyUrl);
+            return Results.Ok(new { Url = lobby.UniqueLobbyUrl });
         }).RequireAuthorization();
 
         // Submit a guess
