@@ -1,0 +1,7 @@
+﻿services:
+  backendserver:
+    image: backendserver
+    build:
+      context: .
+      dockerfile: BackendServer/Dockerfile
+
