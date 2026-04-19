@@ -1,0 +1,43 @@
+@page "/login"
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h4" GutterBottom="true">Login</MudText>
+
+<MudPaper Class="pa-4" MaxWidth="400px">
+    <MudForm @ref="form" @bind-IsValid="@success">
+        <MudTextField @bind-Value="loginModel.Email" Label="Email" Required="true" RequiredError="Email is required!" />
+        <MudTextField @bind-Value="loginModel.Password" Label="Password" InputType="InputType.Password" Required="true" RequiredError="Password is required!" />
+        
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" OnClick="Submit" Class="mt-4">Login</MudButton>
+    </MudForm>
+</MudPaper>
+
+@code {
+    bool success;
+    MudForm? form;
+    LoginModel loginModel = new();
+
+    private async Task Submit()
+    {
+        if (form is not null)
+        {
+            await form.ValidateAsync();
+        }
+        if (form is { IsValid: true })
+        {
+            var response = await Http.PostAsJsonAsync("/login?useCookies=true", loginModel);
+            if (response.IsSuccessStatusCode)
+            {
+                Nav.NavigateTo("/");
+            }
+        }
+    }
+
+    public class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}
+

@@ -1,0 +1,83 @@
+@page "/play/{LobbyId:guid}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JSRuntime
+
+<MudText Typo="Typo.h4" GutterBottom="true">Game Phase</MudText>
+
+@if (isDrawingPhase)
+{
+    <MudText Typo="Typo.h5">Draw the flag!</MudText>
+    <div style="border: 1px solid black; width: 400px; height: 300px;">
+        <canvas id="drawingCanvas" width="400" height="300" style="cursor: crosshair;" @onmousedown="BeginDraw" @onmousemove="Draw" @onmouseup="EndDraw"></canvas>
+    </div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitDrawing" Class="mt-4">Submit Drawing</MudButton>
+}
+else
+{
+    <MudText Typo="Typo.h5">Guess the flag!</MudText>
+    @if (!string.IsNullOrEmpty(currentImageObject))
+    {
+        <img src="/api/pictures/@currentImageObject" width="400" height="300" style="border: 1px solid black;" />
+    }
+    <MudTextField @bind-Value="guess" Label="Your Guess" />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitGuess" Class="mt-4">Submit Guess</MudButton>
+}
+
+@code {
+    [Parameter] public Guid LobbyId { get; set; }
+    private bool isDrawingPhase = true;
+    private string guess = "";
+    private string currentImageObject = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && isDrawingPhase)
+        {
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                window.setupCanvas = () => {
+                    const canvas = document.getElementById('drawingCanvas');
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    let isDrawing = false;
+                    canvas.onmousedown = (e) => { isDrawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); };
+                    canvas.onmousemove = (e) => { if (isDrawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } };
+                    canvas.onmouseup = () => { isDrawing = false; };
+                    canvas.onmouseout = () => { isDrawing = false; };
+                };
+                window.getCanvasData = () => {
+                    return document.getElementById('drawingCanvas').toDataURL('image/png');
+                };
+            ");
+            await JSRuntime.InvokeVoidAsync("setupCanvas");
+        }
+    }
+
+    private void BeginDraw() { }
+    private void Draw() { }
+    private void EndDraw() { }
+
+    private async Task SubmitDrawing()
+    {
+        var dataUrl = await JSRuntime.InvokeAsync<string>("getCanvasData");
+        var base64 = dataUrl.Split(',')[1];
+        var bytes = Convert.FromBase64String(base64);
+        var content = new ByteArrayContent(bytes);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        
+        var response = await Http.PostAsync($"/api/pictures/{LobbyId}-{Guid.NewGuid()}.png", content);
+        if (response.IsSuccessStatusCode)
+        {
+            isDrawingPhase = false;
+        }
+    }
+
+    private async Task SubmitGuess()
+    {
+        // Submit guess to backend...
+        await Http.PostAsJsonAsync($"/api/lobbies/{LobbyId}/guess", new { Guess = guess });
+        guess = "";
+    }
+}
+

@@ -1,0 +1,66 @@
+@page "/create-lobby"
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h4" GutterBottom="true">Create Lobby</MudText>
+
+<MudPaper Class="pa-4" MaxWidth="600px">
+    <MudForm @ref="form" @bind-IsValid="@success">
+        <MudTextField @bind-Value="request.Name" Label="Lobby Name" Required="true" RequiredError="Name is required!" />
+        <MudSelect @bind-Value="request.GameMode" Label="Game Mode" Required="true">
+            <MudSelectItem Value="@("Standard")">Standard</MudSelectItem>
+            <MudSelectItem Value="@("Blitz")">Blitz</MudSelectItem>
+        </MudSelect>
+        <MudNumericField @bind-Value="request.NumberOfRounds" Label="Rounds" Min="1" Max="20" Required="true" />
+        <MudTextField @bind-Value="request.CustomFilter" Label="Filter Category (Optional)" />
+        <MudNumericField @bind-Value="request.TimerForDrawing" Label="Time for Drawing (s)" Min="10" Max="300" Required="true" />
+        <MudNumericField @bind-Value="request.TimerForGuessing" Label="Time for Guessing (s)" Min="5" Max="120" Required="true" />
+        
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" OnClick="Submit" Class="mt-4">Create Lobby</MudButton>
+    </MudForm>
+</MudPaper>
+
+@code {
+    bool success;
+    MudForm? form;
+    LobbyCreateRequest request = new();
+
+    private async Task Submit()
+    {
+        if (form is not null)
+        {
+            await form.ValidateAsync();
+            if (form.IsValid)
+            {
+                var response = await Http.PostAsJsonAsync("/api/lobbies", request);
+                if (response.IsSuccessStatusCode)
+                {
+                    var lobby = await response.Content.ReadFromJsonAsync<LobbyResponse>();
+                    if (lobby != null)
+                    {
+                        Nav.NavigateTo($"/lobby/{lobby.Id}");
+                    }
+                }
+                else 
+                {
+                    // Handle error
+                }
+            }
+        }
+    }
+
+    public class LobbyCreateRequest
+    {
+        public string Name { get; set; } = "";
+        public string GameMode { get; set; } = "Standard";
+        public int NumberOfRounds { get; set; } = 5;
+        public string CustomFilter { get; set; } = "";
+        public int TimerForDrawing { get; set; } = 60;
+        public int TimerForGuessing { get; set; } = 30;
+    }
+
+    public class LobbyResponse
+    {
+        public Guid Id { get; set; }
+    }
+}

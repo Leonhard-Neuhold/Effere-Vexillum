@@ -25,27 +25,20 @@ public static class Endpoints
                 if (!found) return Results.Ok(new string[] { });
 
                 var listArgs = new ListObjectsArgs().WithBucket(bucketName).WithRecursive(true);
-                var observable = minioClient.ListObjectsAsync(listArgs);
                 
                 var pictures = new List<string>();
-                using var cts = new System.Threading.CancellationTokenSource();
-                bool completed = false;
-                
-                observable.Subscribe(
-                    item => {
-                        bool matchesFilter = string.IsNullOrEmpty(filter) || item.Key.Contains(filter, StringComparison.OrdinalIgnoreCase);
-                        bool matchesLabel = string.IsNullOrEmpty(label) || item.Key.Contains(label, StringComparison.OrdinalIgnoreCase);
-                        
-                        if (matchesFilter && matchesLabel && !item.IsDir)
-                        {
-                            pictures.Add(item.Key);
-                        }
-                    },
-                    ex => { completed = true; },
-                    () => { completed = true; });
-                
-                // Keep it simple for this example, wait a short while or use async enumeration if available
-                await System.Threading.Tasks.Task.Delay(500);
+                using var cts = new CancellationTokenSource();
+
+                await foreach (var item in minioClient.ListObjectsEnumAsync(listArgs, cts.Token).ConfigureAwait(false))
+                {
+                    bool matchesFilter = string.IsNullOrEmpty(filter) || item.Key.Contains(filter, StringComparison.OrdinalIgnoreCase);
+                    bool matchesLabel = string.IsNullOrEmpty(label) || item.Key.Contains(label, StringComparison.OrdinalIgnoreCase);
+                    
+                    if (matchesFilter && matchesLabel && !item.IsDir)
+                    {
+                        pictures.Add(item.Key);
+                    }
+                }
 
                 return Results.Ok(pictures);
             }

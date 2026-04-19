@@ -1,0 +1,55 @@
+@page "/lobby/{LobbyId:guid}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h4" GutterBottom="true">Lobby @LobbyId</MudText>
+
+@if (lobby == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudText Typo="Typo.h6">Players: @lobby.JoinedPlayers.Count</MudText>
+    <MudList T="string">
+        @foreach (var player in lobby.JoinedPlayers)
+        {
+            <MudListItem T="string">@player</MudListItem>
+        }
+    </MudList>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartGame" Class="mt-4">Start Game</MudButton>
+    <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="LeaveLobby" Class="mt-4 ml-2">Leave</MudButton>
+}
+
+@code {
+    [Parameter] public Guid LobbyId { get; set; }
+    private LobbyDto? lobby;
+
+    protected override async Task OnInitializedAsync()
+    {
+        lobby = await Http.GetFromJsonAsync<LobbyDto>($"/api/lobbies/{LobbyId}");
+    }
+
+    private async Task StartGame()
+    {
+        var res = await Http.PostAsync($"/api/lobbies/{LobbyId}/start", null);
+        if (res.IsSuccessStatusCode)
+        {
+            // navigate to game or wait for hub signal
+            Nav.NavigateTo($"/play/{LobbyId}");
+        }
+    }
+
+    private async Task LeaveLobby()
+    {
+        await Http.PostAsync($"/api/lobbies/{LobbyId}/leave", null);
+        Nav.NavigateTo("/");
+    }
+
+    public class LobbyDto
+    {
+        public Guid Id { get; set; }
+        public List<string> JoinedPlayers { get; set; } = new();
+    }
+}
