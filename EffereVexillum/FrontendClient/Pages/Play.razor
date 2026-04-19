@@ -1,13 +1,15 @@
 @page "/play/{LobbyId:guid}"
 @inject HttpClient Http
 @inject NavigationManager Nav
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JsRuntime
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
 
 <MudText Typo="Typo.h4" GutterBottom="true">Game Phase</MudText>
 
-@if (isDrawingPhase)
+@if (_isDrawingPhase)
 {
-    <MudText Typo="Typo.h5">Draw the flag!</MudText>
+    <MudText Typo="Typo.h5">Draw the flag: @_flagToDraw!</MudText>
     <div style="border: 1px solid black; width: 400px; height: 300px;">
         <canvas id="drawingCanvas" width="400" height="300" style="cursor: crosshair;" @onmousedown="BeginDraw" @onmousemove="Draw" @onmouseup="EndDraw"></canvas>
     </div>
@@ -16,25 +18,78 @@
 else
 {
     <MudText Typo="Typo.h5">Guess the flag!</MudText>
-    @if (!string.IsNullOrEmpty(currentImageObject))
+    @if (!string.IsNullOrEmpty(_currentImageObject))
     {
-        <img src="/api/pictures/@currentImageObject" width="400" height="300" style="border: 1px solid black;" />
+        <img src="/api/pictures/@_currentImageObject" alt="Flag to guess" width="400" height="300" style="border: 1px solid black;" />
     }
-    <MudTextField @bind-Value="guess" Label="Your Guess" />
+    <MudTextField @bind-Value="_guess" Label="Your Guess" />
     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitGuess" Class="mt-4">Submit Guess</MudButton>
 }
 
 @code {
     [Parameter] public Guid LobbyId { get; set; }
-    private bool isDrawingPhase = true;
-    private string guess = "";
-    private string currentImageObject = "";
+    private bool _isDrawingPhase = true;
+    private string _guess = "";
+    private string _currentImageObject = "";
+    private string _flagToDraw = "";
+    private Guid _gameId;
+    private int _roundNumber;
+    private HubConnection? _hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGameState();
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("http://localhost:9002/gamehub"))
+            .Build();
+
+        _hubConnection.On<int>("RoundStarted", async (_) =>
+        {
+            _isDrawingPhase = true;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<int>("DrawingPhaseFinished", async (_) =>
+        {
+            _isDrawingPhase = false;
+            // You may need to fetch the currentImageObject from backend based on what to guess
+            await InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<int>("RoundFinished", async (_) =>
+        {
+            // Transition logic or show scores if appropriate
+            await InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<Guid>("GameFinished", (_) =>
+        {
+            Nav.NavigateTo($"/lobby/{LobbyId}");
+        });
+
+        await _hubConnection.StartAsync();
+        await _hubConnection.SendAsync("JoinLobbyGroup", LobbyId.ToString());
+    }
+
+    private async Task LoadGameState()
+    {
+        var result = await Http.GetFromJsonAsync<GameStateDto>($"/api/lobbies/{LobbyId}/game");
+        if (result != null)
+        {
+            _gameId = result.GameId;
+            _roundNumber = result.RoundNumber;
+            _isDrawingPhase = result.State == "drawing";
+            _flagToDraw = result.FlagToDraw ?? "";
+            _currentImageObject = result.ImageToGuess ?? "";
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && isDrawingPhase)
+        if (firstRender && _isDrawingPhase)
         {
-            await JSRuntime.InvokeVoidAsync("eval", @"
+            await JsRuntime.InvokeVoidAsync("eval", @"
                 window.setupCanvas = () => {
                     const canvas = document.getElementById('drawingCanvas');
                     const ctx = canvas.getContext('2d');
@@ -50,7 +105,7 @@ else
                     return document.getElementById('drawingCanvas').toDataURL('image/png');
                 };
             ");
-            await JSRuntime.InvokeVoidAsync("setupCanvas");
+            await JsRuntime.InvokeVoidAsync("setupCanvas");
         }
     }
 
@@ -60,24 +115,61 @@ else
 
     private async Task SubmitDrawing()
     {
-        var dataUrl = await JSRuntime.InvokeAsync<string>("getCanvasData");
+        var dataUrl = await JsRuntime.InvokeAsync<string>("getCanvasData");
         var base64 = dataUrl.Split(',')[1];
         var bytes = Convert.FromBase64String(base64);
         var content = new ByteArrayContent(bytes);
         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
-        
-        var response = await Http.PostAsync($"/api/pictures/{LobbyId}-{Guid.NewGuid()}.png", content);
+
+        using var contentMulti = new MultipartFormDataContent();
+        contentMulti.Add(new StringContent(LobbyId.ToString()), "lobbyId");
+        contentMulti.Add(new StringContent(_gameId.ToString()), "gameId");
+        contentMulti.Add(new StringContent(_roundNumber.ToString()), "roundNumber");
+        contentMulti.Add(content, "file", "drawing.png");
+
+        var response = await Http.PostAsync("/api/upload-drawing", contentMulti);
         if (response.IsSuccessStatusCode)
         {
-            isDrawingPhase = false;
+            var result = await response.Content.ReadFromJsonAsync<UploadResponse>();
+            if (result != null && !string.IsNullOrEmpty(result.Path))
+            {
+                await Http.PostAsJsonAsync("/api/submit-drawing", new 
+                { 
+                    GameId = _gameId, 
+                    RoundNumber = _roundNumber, 
+                    ImagePath = result.Path 
+                });
+                _isDrawingPhase = false;
+            }
         }
     }
 
     private async Task SubmitGuess()
     {
         // Submit guess to backend...
-        await Http.PostAsJsonAsync($"/api/lobbies/{LobbyId}/guess", new { Guess = guess });
-        guess = "";
+        await Http.PostAsJsonAsync($"/api/guess", new { GameId = _gameId, RoundNumber = _roundNumber, Guess = _guess });
+        _guess = "";
+    }
+
+    public class GameStateDto
+    {
+        public Guid GameId { get; set; }
+        public int RoundNumber { get; set; }
+        public string State { get; set; } = "";
+        public string? FlagToDraw { get; set; }
+        public string? ImageToGuess { get; set; }
+    }
+
+    public class UploadResponse 
+    {
+        public string? Path { get; set; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
     }
 }
-

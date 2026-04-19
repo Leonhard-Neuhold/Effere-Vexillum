@@ -1,6 +1,8 @@
 @page "/lobby/{LobbyId:guid}"
 @inject HttpClient Http
 @inject NavigationManager Nav
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
 
 <MudText Typo="Typo.h4" GutterBottom="true">Lobby @LobbyId</MudText>
 
@@ -27,18 +29,41 @@ else
 @code {
     [Parameter] public Guid LobbyId { get; set; }
     private LobbyDto? lobby;
+    private HubConnection? hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
         lobby = await Http.GetFromJsonAsync<LobbyDto>($"/api/lobbies/{LobbyId}");
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("http://localhost:9002/gamehub"))
+            .Build();
+
+        hubConnection.On<string>("PlayerJoined", async (userId) =>
+        {
+            if (lobby != null && !lobby.JoinedPlayers.Contains(userId))
+            {
+                lobby.JoinedPlayers.Add(userId);
+                await InvokeAsync(StateHasHasChanged);
+            }
+        });
+
+        hubConnection.On<Guid>("GameStarted", (_) =>
+        {
+            Nav.NavigateTo($"/play/{LobbyId}");
+        });
+
+        await hubConnection.StartAsync();
+        await hubConnection.SendAsync("JoinLobbyGroup", LobbyId.ToString());
     }
+
+    private void StateHasHasChanged() => StateHasChanged();
 
     private async Task StartGame()
     {
         var res = await Http.PostAsync($"/api/lobbies/{LobbyId}/start", null);
         if (res.IsSuccessStatusCode)
         {
-            // navigate to game or wait for hub signal
             Nav.NavigateTo($"/play/{LobbyId}");
         }
     }
@@ -54,5 +79,13 @@ else
         public Guid Id { get; set; }
         public List<string> JoinedPlayers { get; set; } = new();
         public string UniqueJoinLink { get; set; } = string.Empty;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
     }
 }

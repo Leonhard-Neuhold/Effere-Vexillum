@@ -56,6 +56,46 @@ public static class LobbyEndpoints
             return lobby is not null ? Results.Ok(lobby) : Results.NotFound();
         });
 
+        // Get current game details
+        lobbiesGroup.MapGet("/{id:guid}/game", async (AppDbContext db, ClaimsPrincipal user, Guid id) =>
+        {
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            var lobby = await db.Lobbies.Include(l => l.Games).ThenInclude(g => g.Rounds).FirstOrDefaultAsync(l => l.Id == id);
+
+            if (lobby is null) return Results.NotFound();
+
+            var activeGame = lobby.Games.OrderByDescending(g => g.CurrentRoundNumber).FirstOrDefault(g => !g.GameFinished);
+            if (activeGame == null) return Results.NotFound("No active game.");
+
+            var activeRound = activeGame.Rounds.FirstOrDefault(r => r.RoundNumber == activeGame.CurrentRoundNumber);
+            if (activeRound == null) return Results.NotFound("No active round.");
+
+            string? imageToGuess = null;
+            string? flagToDraw = null;
+
+            if (activeRound.State == "drawing")
+            {
+                flagToDraw = activeRound.PlayerFlags.GetValueOrDefault(userId ?? "");
+            }
+            else if (activeRound.State == "guessing")
+            {
+                var drawer = activeRound.PlayerToDrawingMapping.GetValueOrDefault(userId ?? "");
+                if (drawer != null)
+                {
+                    imageToGuess = activeRound.PlayerDrawnFlags.GetValueOrDefault(drawer);
+                }
+            }
+
+            return Results.Ok(new
+            {
+                GameId = activeGame.Id,
+                RoundNumber = activeRound.RoundNumber,
+                State = activeRound.State,
+                FlagToDraw = flagToDraw,
+                ImageToGuess = imageToGuess
+            });
+        });
+
         // Update a lobby
         lobbiesGroup.MapPut("/{id:guid}", async (AppDbContext db, ClaimsPrincipal user, Guid id, LobbyUpdateRequest request) =>
         {
