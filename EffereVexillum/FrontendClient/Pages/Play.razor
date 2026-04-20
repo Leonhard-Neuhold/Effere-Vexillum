@@ -9,11 +9,16 @@
 
 @if (_isDrawingPhase)
 {
-    <MudText Typo="Typo.h5">Draw the flag: @_flagToDraw!</MudText>
-    <div style="border: 1px solid black; width: 400px; height: 300px;">
-        <canvas id="drawingCanvas" width="400" height="300" style="cursor: crosshair;" @onmousedown="BeginDraw" @onmousemove="Draw" @onmouseup="EndDraw"></canvas>
-    </div>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitDrawing" Class="mt-4">Submit Drawing</MudButton>
+    @if (!_hasSubmittedDrawing)
+    {
+        <MudText Typo="Typo.h5">Draw the flag: @_flagToDraw!</MudText>
+        <canvas id="drawingCanvas" width="400" height="300" style="cursor: crosshair; border: 1px solid black; display: block;" @onmousedown="BeginDraw" @onmousemove="Draw" @onmouseup="EndDraw"></canvas>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitDrawing" Class="mt-4">Submit Drawing</MudButton>
+    }
+    else
+    {
+        <MudText Typo="Typo.h5">Waiting for other players to finish drawing...</MudText>
+    }
 }
 else
 {
@@ -29,6 +34,8 @@ else
 @code {
     [Parameter] public Guid LobbyId { get; set; }
     private bool _isDrawingPhase = true;
+    private bool _hasSubmittedDrawing = false;
+    private bool _canvasInitialized = false;
     private string _guess = "";
     private string _currentImageObject = "";
     private string _flagToDraw = "";
@@ -46,20 +53,23 @@ else
 
         _hubConnection.On<int>("RoundStarted", async (_) =>
         {
+            await LoadGameState();
             _isDrawingPhase = true;
+            _hasSubmittedDrawing = false;
+            _canvasInitialized = false;
             await InvokeAsync(StateHasChanged);
         });
 
         _hubConnection.On<int>("DrawingPhaseFinished", async (_) =>
         {
+            await LoadGameState();
             _isDrawingPhase = false;
-            // You may need to fetch the currentImageObject from backend based on what to guess
             await InvokeAsync(StateHasChanged);
         });
 
         _hubConnection.On<int>("RoundFinished", async (_) =>
         {
-            // Transition logic or show scores if appropriate
+            await LoadGameState();
             await InvokeAsync(StateHasChanged);
         });
 
@@ -87,11 +97,12 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _isDrawingPhase)
+        if (firstRender)
         {
             await JsRuntime.InvokeVoidAsync("eval", @"
                 window.setupCanvas = () => {
                     const canvas = document.getElementById('drawingCanvas');
+                    if (!canvas) return;
                     const ctx = canvas.getContext('2d');
                     ctx.fillStyle = 'white';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -105,7 +116,16 @@ else
                     return document.getElementById('drawingCanvas').toDataURL('image/png');
                 };
             ");
-            await JsRuntime.InvokeVoidAsync("setupCanvas");
+        }
+
+        if (_isDrawingPhase && !_hasSubmittedDrawing && !_canvasInitialized)
+        {
+            try
+            {
+                await JsRuntime.InvokeVoidAsync("setupCanvas");
+                _canvasInitialized = true;
+            }
+            catch { }
         }
     }
 
@@ -139,7 +159,7 @@ else
                     RoundNumber = _roundNumber, 
                     ImagePath = result.Path 
                 });
-                _isDrawingPhase = false;
+                _hasSubmittedDrawing = true;
             }
         }
     }
