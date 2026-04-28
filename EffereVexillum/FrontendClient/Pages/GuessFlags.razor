@@ -1,0 +1,195 @@
+@page "/guess-flags"
+@inject HttpClient Http
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+    <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">Practice Flags</MudText>
+    
+    @if (_isLoading)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="d-block mx-auto" />
+    }
+    else if (_finished)
+    {
+        <MudCard Class="pa-4 text-center">
+            <MudText Typo="Typo.h4" Color="Color.Success">Completed!</MudText>
+            <MudText>You guessed @_correctCount out of @_totalCount correctly.</MudText>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Restart" Class="mt-4">Restart</MudButton>
+        </MudCard>
+    }
+    else if (_picturesToGuess.Count > 0)
+    {
+        <MudGrid>
+            <MudItem xs="12" Class="d-flex justify-space-between mb-4">
+                <MudText Typo="Typo.subtitle1">Total: @_totalCount</MudText>
+                <MudText Typo="Typo.subtitle1">Guessed: @_guessedCount</MudText>
+                <MudText Typo="Typo.subtitle1" Color="Color.Success">Correct: @_correctCount</MudText>
+            </MudItem>
+        </MudGrid>
+
+        <MudCard>
+            <div class="d-flex justify-center align-center" style="height: 400px; padding: 16px; background-color: #fafafa;">
+                <img src="@GetImageUrl(_currentPicture)" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="Flag to guess" />
+            </div>
+            <MudCardContent>
+                <MudTextField @ref="_mudTextField" @bind-Value="_userGuess" Label="Your Guess" Variant="Variant.Outlined" Immediate="true" OnKeyDown="OnKeyDown" ReadOnly="_showResult" />
+                @if (_showResult)
+                {
+                    <MudText Typo="Typo.h6" Class="mt-2" Color="@(_wasCorrect ? Color.Success : Color.Error)">
+                        @_resultMessage
+                    </MudText>
+                }
+            </MudCardContent>
+            <MudCardActions Class="justify-center">
+                @if (!_showResult)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitGuess" Disabled="@string.IsNullOrWhiteSpace(_userGuess)">Submit</MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="NextFlagAsync">Next</MudButton>
+                }
+            </MudCardActions>
+        </MudCard>
+    }
+    else
+    {
+        <MudText Typo="Typo.h5" Align="Align.Center">No flags found to guess.</MudText>
+    }
+</MudContainer>
+
+@code {
+    private MudTextField<string>? _mudTextField;
+
+    private List<string> _allPictures = [];
+    private List<string> _picturesToGuess = [];
+    
+    private int _totalCount;
+    private int _guessedCount;
+    private int _correctCount;
+    
+    private string _currentPicture = "";
+    private string _userGuess = "";
+    
+    private bool _isLoading = true;
+    private bool _finished;
+    private bool _showResult;
+    private bool _wasCorrect;
+    private string _resultMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFlags();
+    }
+
+    private async Task LoadFlags()
+    {
+        _isLoading = true;
+        try
+        {
+            var res = await Http.GetFromJsonAsync<List<string>>("/api/pictures/");
+            if (res != null)
+            {
+                _allPictures = res;
+            }
+            Restart();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void Restart()
+    {
+        _picturesToGuess = new List<string>(_allPictures);
+        Shuffle(_picturesToGuess);
+        _totalCount = _picturesToGuess.Count;
+        _guessedCount = 0;
+        _correctCount = 0;
+        _finished = false;
+        _ = PrepareNextAsync();
+    }
+
+    private async Task PrepareNextAsync()
+    {
+        if (_picturesToGuess.Count == 0)
+        {
+            _finished = true;
+            return;
+        }
+        _currentPicture = _picturesToGuess[0];
+        _userGuess = "";
+        _showResult = false;
+        
+        StateHasChanged();
+        await Task.Delay(50);
+        if (_mudTextField != null)
+        {
+            await _mudTextField.FocusAsync();
+        }
+    }
+
+    private string GetImageUrl(string pictureInfo)
+    {
+        return $"{Http.BaseAddress}api/pictures/{pictureInfo}";
+    }
+
+    private static string GetExpectedAnswer(string path)
+    {
+        var name = Path.GetFileNameWithoutExtension(path);
+        return name.Replace("_", " ").Trim();
+    }
+
+    private void SubmitGuess()
+    {
+        if (string.IsNullOrWhiteSpace(_userGuess)) return;
+
+        var expected = GetExpectedAnswer(_currentPicture);
+        _wasCorrect = string.Equals(expected, _userGuess.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        if (_wasCorrect)
+        {
+            _correctCount++;
+            _resultMessage = "Correct!";
+        }
+        else
+        {
+            _resultMessage = $"Wrong! The correct answer was {expected}.";
+        }
+
+        _guessedCount++;
+        _showResult = true;
+    }
+
+    private async Task NextFlagAsync()
+    {
+        _picturesToGuess.RemoveAt(0);
+        await PrepareNextAsync();
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter") return;
+        if (!_showResult)
+            SubmitGuess();
+        else
+            _ = NextFlagAsync();
+    }
+
+    private static void Shuffle<T>(List<T> list)
+    {
+        var rng = new Random();
+        var n = list.Count;
+        while (n > 1)
+        {
+            n--;
+            var k = rng.Next(n + 1);
+            (list[k], list[n]) = (list[n], list[k]);
+        }
+    }
+}
+
