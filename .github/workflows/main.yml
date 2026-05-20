@@ -1,0 +1,49 @@
+name: Build and Push to Private Registry
+
+on:
+  push:
+    branches:
+      - main  # Triggers the workflow when code is pushed to the main branch
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service_name: web-app
+            dockerfile: ./Frontend/Dockerfile
+            image_name: ://registry.neuhold-leonhard.work
+          - service_name: backend-service
+            dockerfile: ./BackendServer/Dockerfile
+            image_name: ://registry.neuhold-leonhard.work
+
+    steps:
+    # Step 1: Check out the code from the repository
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # Step 2: Set up Docker Buildx for advanced build capabilities (Optional but recommended)
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    # Step 3: Authenticate against your own custom Docker registry
+    - name: Login to Custom Registry
+      uses: docker/login-action@v3
+      with:
+        registry: https://registry.neuhold-leonhard.work
+        username: ${{ secrets.DOCKER_REG_USERNAME }}
+        password: ${{ secrets.DOCKER_REG_PASSWORD }}
+
+    # Step 4: Build the image from your Dockerfile and push it to your registry
+    - name: Build and Push Docker Image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ${{ matrix.dockerfile }}
+        push: true
+        tags: |
+          ${{ matrix.image_name }}:latest
+          ${{ matrix.image_name }}:${{ github.sha }}
