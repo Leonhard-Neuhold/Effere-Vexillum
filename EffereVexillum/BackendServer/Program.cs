@@ -50,11 +50,11 @@ using (var scope = app.Services.CreateScope())
 
 app.UseCors("AllowAll");
 
-app.MapIdentityApi<IdentityUser>();
+app.MapGroup("/api/auth").MapIdentityApi<IdentityUser>();
 
-app.MapHub<GameHub>("/gamehub");
+app.MapHub<GameHub>("/lobby");
 
-app.MapPost("/logout", async (SignInManager<IdentityUser> signInManager) =>
+app.MapPost("/api/auth/logout", async (SignInManager<IdentityUser> signInManager) =>
 {
     await signInManager.SignOutAsync();
     return Results.Ok();

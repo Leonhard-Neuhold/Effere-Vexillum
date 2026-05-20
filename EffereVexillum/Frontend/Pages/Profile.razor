@@ -1,0 +1,52 @@
+@page "/profile"
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h4" GutterBottom="true">Profile</MudText>
+
+<MudPaper Class="pa-4" MaxWidth="600px">
+    <MudForm @ref="form" @bind-IsValid="@success">
+        <MudTextField @bind-Value="info.Email" Label="Email" Required="true" RequiredError="Email is required!" />
+        <MudTextField @bind-Value="info.NewPassword" Label="New Password" InputType="InputType.Password" />
+        <MudTextField @bind-Value="info.OldPassword" Label="Old Password" InputType="InputType.Password" />
+        
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" OnClick="Submit" Class="mt-4">Update Profile</MudButton>
+    </MudForm>
+</MudPaper>
+
+@code {
+    bool success;
+    MudForm? form;
+    InfoModel info = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await Http.GetAsync("/manage/info");
+        if (response.IsSuccessStatusCode)
+        {
+            var data = await response.Content.ReadFromJsonAsync<InfoModel>();
+            if (data != null) info.Email = data.Email;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (form is not null)
+        {
+            await form.ValidateAsync();
+        }
+        if (form is { IsValid: true }) 
+        {
+            await Http.PostAsJsonAsync("/manage/info", info);
+            Nav.NavigateTo("/");
+        }
+    }
+
+    public class InfoModel
+    {
+        public string Email { get; set; } = "";
+        public string? NewPassword { get; set; }
+        public string? OldPassword { get; set; }
+    }
+}
+
