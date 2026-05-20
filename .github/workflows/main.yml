@@ -14,11 +14,11 @@ jobs:
       matrix:
         include:
           - service_name: web-app
-            dockerfile: ./EffereVexillum/Frontend/Dockerfile
+            dockerfile: ./EffereVexillum/Frontend/
             image_name: https://registry.neuhold-leonhard.work/vexillumfrontend
             image_tag: vexillumfrontend:latest
           - service_name: backend-service
-            dockerfile: ./EffereVexillum/BackendServer/Dockerfile
+            dockerfile: ./EffereVexillum/BackendServer/
             image_name: https://registry.neuhold-leonhard.work/vexillumbackend
             image_tag: vexillumbackend:latest
 
