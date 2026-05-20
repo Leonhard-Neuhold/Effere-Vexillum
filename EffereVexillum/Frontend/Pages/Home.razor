@@ -5,6 +5,20 @@
 <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">Effere Vexillum</MudText>
 <MudText Typo="Typo.subtitle1" Align="Align.Center" GutterBottom="true">The Flag Guessing Game</MudText>
 
+<MudText Typo="Typo.h5" Align="Align.Center" GutterBottom="true">
+    @if (isLoaded)
+    {
+        if (isLoggedIn)
+        {
+            <text>Hello @username!</text>
+        }
+        else
+        {
+            <text>Hello guest!</text>
+        }
+    }
+</MudText>
+
 <MudGrid Justify="Justify.Center" Class="mt-8">
     <MudItem xs="12" sm="6" md="4">
         <MudCard>
@@ -32,6 +46,36 @@
 
 @code {
     private string JoinCode { get; set; } = "";
+    private string username = string.Empty;
+    private bool isLoggedIn = false;
+    private bool isLoaded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await Http.GetAsync("/api/auth/manage/info");
+            if (response.IsSuccessStatusCode)
+            {
+                var info = await response.Content.ReadFromJsonAsync<UserInfo>();
+                if (info != null)
+                {
+                    username = info.Email;
+                    isLoggedIn = true;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore if fetch fails
+        }
+        isLoaded = true;
+    }
+
+    public class UserInfo
+    {
+        public string Email { get; set; } = string.Empty;
+    }
 
     public class JoinResponse
     {
