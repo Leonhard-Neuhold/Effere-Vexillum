@@ -35,6 +35,10 @@ jobs:
         username: ${{ secrets.DOCKER_REG_USERNAME }}
         password: ${{ secrets.DOCKER_REG_PASSWORD }}
 
+    # Debug
+    - name: Check Path
+      run: pwd
+
     # Step 3: Build the image from the Dockerfile
     - name: Build Docker Image
       run: docker build -t ${{ matrix.image_tag}} ${{ matrix.dockerfile}}
