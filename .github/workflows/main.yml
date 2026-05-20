@@ -15,13 +15,11 @@ jobs:
         include:
           - service_name: web-app
             dockerfile: ./EffereVexillum/Frontend/
-            image_name: ://registry.neuhold-leonhard.work/vexillumfrontend
-            image_tag: vexillumfrontend:latest
+            image_name: registry.neuhold-leonhard.work/vexillumfrontend:latest
           - service_name: backend-service
             dockerfile: ./EffereVexillum/BackendServer/
-            image_name: ://registry.neuhold-leonhard.work/vexillumbackend
-            image_tag: vexillumbackend:latest
-
+            image_name: registry.neuhold-leonhard.work/vexillumbackend:latest
+            
     steps:
     # Step 1: Check out the code from the repository
     - name: Checkout Code
@@ -41,7 +39,7 @@ jobs:
 
     # Step 3: Build the image from the Dockerfile
     - name: Build Docker Image
-      run: docker build -t ${{ matrix.image_tag}} ${{ matrix.dockerfile}}
+      run: docker build -t ${{ matrix.image_name }} ${{ matrix.dockerfile }}
 
     # Step 4: Push the image to the registry
     - name: Push Docker Image
