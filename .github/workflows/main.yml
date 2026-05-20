@@ -3,7 +3,7 @@ name: Build and Push to Private Registry
 on:
   push:
     branches:
-      - main  # Triggers the workflow when code is pushed to the main branch
+      - master  # Triggers the workflow when code is pushed to the main branch
 
 jobs:
   build-and-push:
@@ -14,10 +14,10 @@ jobs:
       matrix:
         include:
           - service_name: web-app
-            dockerfile: ./Frontend/Dockerfile
+            dockerfile: ./EffereVexillum/Frontend/Dockerfile
             image_name: ://registry.neuhold-leonhard.work
           - service_name: backend-service
-            dockerfile: ./BackendServer/Dockerfile
+            dockerfile: ./EffereVexillum/BackendServer/Dockerfile
             image_name: ://registry.neuhold-leonhard.work
 
     steps:
