@@ -1,3 +1,7 @@
+.idea/
+obj/
+bin/
+
 /EffereVexillum/FrontendClient/publish/wwwroot/css/app.css
 /EffereVexillum/FrontendClient/publish/wwwroot/css/app.css.br
 /EffereVexillum/FrontendClient/publish/wwwroot/css/app.css.gz
