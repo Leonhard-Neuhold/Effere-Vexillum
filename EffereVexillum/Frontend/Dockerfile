@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY ["Frontend/Frontend.csproj", "./"]
+COPY ["Frontend.csproj", "./"]
 RUN dotnet restore "Frontend.csproj"
 
 COPY ./Frontend .

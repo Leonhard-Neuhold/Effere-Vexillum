@@ -7,8 +7,8 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["BackendServer/BackendServer.csproj", "BackendServer/"]
-RUN dotnet restore "BackendServer/BackendServer.csproj"
+COPY ["BackendServer.csproj", "BackendServer/"]
+RUN dotnet restore "BackendServer.csproj"
 COPY . .
 WORKDIR "/src/BackendServer"
 RUN dotnet build "./BackendServer.csproj" -c $BUILD_CONFIGURATION -o /app/build
