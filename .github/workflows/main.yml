@@ -15,10 +15,10 @@ jobs:
         include:
           - service_name: web-app
             dockerfile: ./EffereVexillum/Frontend/Dockerfile
-            image_name: ://registry.neuhold-leonhard.work
+            image_name: ://registry.neuhold-leonhard.work/vexillumfrontend
           - service_name: backend-service
             dockerfile: ./EffereVexillum/BackendServer/Dockerfile
-            image_name: ://registry.neuhold-leonhard.work
+            image_name: ://registry.neuhold-leonhard.work/vexillumbackend
 
     steps:
     # Step 1: Check out the code from the repository
@@ -44,6 +44,4 @@ jobs:
         context: .
         file: ${{ matrix.dockerfile }}
         push: true
-        tags: |
-          ${{ matrix.image_name }}:latest
-          ${{ matrix.image_name }}:${{ github.sha }}
+        tags: ${{ matrix.image_name }}:latest,${{ matrix.image_name }}:${{ github.sha }}
