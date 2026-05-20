@@ -15,11 +15,11 @@ jobs:
         include:
           - service_name: web-app
             dockerfile: ./EffereVexillum/Frontend/
-            image_name: https://registry.neuhold-leonhard.work/vexillumfrontend
+            image_name: ://registry.neuhold-leonhard.work/vexillumfrontend
             image_tag: vexillumfrontend:latest
           - service_name: backend-service
             dockerfile: ./EffereVexillum/BackendServer/
-            image_name: https://registry.neuhold-leonhard.work/vexillumbackend
+            image_name: ://registry.neuhold-leonhard.work/vexillumbackend
             image_tag: vexillumbackend:latest
 
     steps:
@@ -45,4 +45,4 @@ jobs:
 
     # Step 4: Push the image to the registry
     - name: Push Docker Image
-      run: docker push ${{ matrix.image_tag }}
+      run: docker push ${{ matrix.image_name }}
