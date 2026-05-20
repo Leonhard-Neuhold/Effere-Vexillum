@@ -4,7 +4,7 @@ WORKDIR /src
 COPY ["Frontend.csproj", "./"]
 RUN dotnet restore "Frontend.csproj"
 
-COPY ./Frontend .
+COPY . .
 RUN dotnet publish "Frontend.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM nginx:alpine AS final
