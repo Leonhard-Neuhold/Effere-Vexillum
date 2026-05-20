@@ -37,7 +37,7 @@ jobs:
 
     # Debug
     - name: Check Path
-      run: pwd
+      run: pwd && ls -al && tree
 
     # Step 3: Build the image from the Dockerfile
     - name: Build Docker Image
