@@ -45,3 +45,5 @@ jobs:
         file: ${{ matrix.dockerfile }}
         push: true
         tags: ${{ matrix.image_name }}:latest,${{ matrix.image_name }}:${{ github.sha }}
+        build-args: |
+          BUILDKIT_ARGS=--tag=${{ matrix.image_name }}:latest --tag=${{ matrix.image_name }}:${{ github.sha }}
