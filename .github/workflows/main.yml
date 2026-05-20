@@ -45,4 +45,4 @@ jobs:
 
     # Step 4: Push the image to the registry
     - name: Push Docker Image
-      run: docker push ${{ matrix.image_name }}
+      run: docker push ${{ matrix.image_tag }}
