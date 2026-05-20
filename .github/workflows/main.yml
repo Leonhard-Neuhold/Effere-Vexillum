@@ -16,9 +16,11 @@ jobs:
           - service_name: web-app
             dockerfile: ./EffereVexillum/Frontend/Dockerfile
             image_name: https://registry.neuhold-leonhard.work/vexillumfrontend
+            image_tag: vexillumfrontend:latest
           - service_name: backend-service
             dockerfile: ./EffereVexillum/BackendServer/Dockerfile
             image_name: https://registry.neuhold-leonhard.work/vexillumbackend
+            image_tag: vexillumbackend:latest
 
     steps:
     # Step 1: Check out the code from the repository
@@ -35,7 +37,7 @@ jobs:
 
     # Step 3: Build the image from the Dockerfile
     - name: Build Docker Image
-      run: docker build -t ${{ matrix.image_name}} ${{ matrix.dockerfile}}
+      run: docker build -t ${{ matrix.image_tag}} ${{ matrix.dockerfile}}
 
     # Step 4: Push the image to the registry
     - name: Push Docker Image
