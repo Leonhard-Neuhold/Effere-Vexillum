@@ -1,9 +1,9 @@
-name: Build and Push to Private Registry
+name: Build and Push to Private Registry and Automatic Deployment
 
 on:
   push:
     branches:
-      - master  # Triggers the workflow when code is pushed to the main branch
+      - master
 
 jobs:
   build-and-push:
