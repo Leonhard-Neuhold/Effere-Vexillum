@@ -374,6 +374,68 @@ public static class GameTimers
 
 public static class GameLogic
 {
+    public static int ComputeLevenshteinDistance(string source, string target)
+    {
+        if (string.IsNullOrEmpty(source)) return target?.Length ?? 0;
+        if (string.IsNullOrEmpty(target)) return source.Length;
+
+        var sourceLower = source.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+        var targetLower = target.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+
+        int sourceLength = sourceLower.Length;
+        int targetLength = targetLower.Length;
+
+        int[,] distance = new int[sourceLength + 1, targetLength + 1];
+
+        for (int i = 0; i <= sourceLength; distance[i, 0] = i++) { }
+        for (int j = 0; j <= targetLength; distance[0, j] = j++) { }
+
+        for (int i = 1; i <= sourceLength; i++)
+        {
+            for (int j = 1; j <= targetLength; j++)
+            {
+                int cost = (targetLower[j - 1] == sourceLower[i - 1]) ? 0 : 1;
+                distance[i, j] = Math.Min(
+                                    Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
+                                    distance[i - 1, j - 1] + cost);
+            }
+        }
+
+        return distance[sourceLength, targetLength];
+    }
+
+    public static bool IsGuessAcceptable(string guess, string expected, List<string> aliases)
+    {
+        if (string.IsNullOrWhiteSpace(guess)) return false;
+
+        // Collect all possible valid answers
+        var validAnswers = new List<string> { expected };
+        if (aliases != null)
+        {
+            validAnswers.AddRange(aliases);
+        }
+
+        foreach (var answer in validAnswers)
+        {
+            if (string.IsNullOrWhiteSpace(answer)) continue;
+
+            // Normalize guess and answer
+            var normalizedGuess = guess.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+            var normalizedAnswer = answer.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+
+            if (normalizedGuess == normalizedAnswer)
+                return true;
+
+            var distance = ComputeLevenshteinDistance(normalizedGuess, normalizedAnswer);
+            var maxDistance = Math.Max(1, normalizedAnswer.Length / 4); // E.g., 2 for length 8-11, 3 for 12-15
+
+            if (distance <= maxDistance)
+                return true;
+        }
+
+        return false;
+    }
+
     public static async Task FinishDrawingPhase(IServiceProvider sp, Guid gameId, int roundNumber)
     {
         using var scope = sp.CreateScope();
@@ -433,6 +495,11 @@ public static class GameLogic
         
         // Exponential decay factor (e.g. e^(-3 * elapsed / maxTime)) so points fall drastically toward 0
         double multiplier = Math.Exp(-3.0 * elapsed / maxTime);
+
+        // Fetch flags to get aliases
+        var allCorrectFlagNames = round.PlayerFlags.Values.Distinct().ToList();
+        var flagsInDb = await db.Flags.Where(f => allCorrectFlagNames.Contains(f.Name)).ToListAsync();
+        var flagDict = flagsInDb.ToDictionary(f => f.Name, f => f.Aliases);
         
         foreach (var guesser in lobby.JoinedPlayers)
         {
@@ -443,7 +510,9 @@ public static class GameLogic
             if (drawer != null && round.PlayerFlags.TryGetValue(drawer, out var correctFlagName))
             {
                 var guess = round.PlayerGuesses.GetValueOrDefault(guesser);
-                if (string.Equals(guess, correctFlagName, StringComparison.OrdinalIgnoreCase))
+                var aliases = flagDict.GetValueOrDefault(correctFlagName) ?? new List<string>();
+
+                if (guess != null && IsGuessAcceptable(guess, correctFlagName, aliases))
                 {
                     int points = (int)Math.Round(1000 * multiplier);
                     round.PlayerPoints[guesser] += points;
