@@ -44,3 +44,16 @@ jobs:
     # Step 4: Push the image to the registry
     - name: Push Docker Image
       run: docker push ${{ matrix.image_name }}
+
+    # Step 5: Deployment on remote server
+    - name: Execute Remote Commands via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 8022
+        script: |
+          echo "Successfully connected without a password!"
+          kubectl rollout restart deployment
+          echo "Completed rollout!"
