@@ -32,12 +32,10 @@ spec:
               value: postgres
           image: postgres:15
           livenessProbe:
-            exec:
-              command:
-                - pg_isready -U postgres -d effere
-            failureThreshold: 5
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 15
             periodSeconds: 10
-            timeoutSeconds: 5
           name: postgres
           ports:
             - containerPort: 5432

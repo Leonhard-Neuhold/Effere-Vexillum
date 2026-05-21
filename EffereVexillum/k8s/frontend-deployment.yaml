@@ -8,7 +8,7 @@ metadata:
     io.kompose.service: frontend
   name: frontend
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       io.kompose.service: frontend
@@ -20,8 +20,10 @@ spec:
       labels:
         io.kompose.service: frontend
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
-        - image: frontend
+        - image: registry.neuhold-leonhard.work/vexillumfrontend:latest
           name: frontend
           ports:
             - containerPort: 80
