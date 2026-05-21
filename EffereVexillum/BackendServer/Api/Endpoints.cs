@@ -7,11 +7,19 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Minio;
 using Minio.DataModel.Args;
+using BackendServer.Database;
+using Microsoft.EntityFrameworkCore;
 
 public static class Endpoints
 {
     public static void AddEndpoints(this WebApplication app)
     {
+        app.MapGet("/api/flags", async (AppDbContext db) => 
+        {
+            var flags = await db.Flags.Select(f => new { f.Name, f.Aliases }).ToListAsync();
+            return Results.Ok(flags);
+        });
+
         app.MapGet("/health", () => "Service healthy!");
 
         var picturesGroup = app.MapGroup("/api/pictures");

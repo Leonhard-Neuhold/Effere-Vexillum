@@ -9,4 +9,7 @@ public class Flag
     
     // The category (e.g., "country", "territory", "subcountry", "province", "state", "county", "organization", "military", "civil rights")
     public string Category { get; set; } = string.Empty;
+
+    // Alternative names or translations (e.g. German names, aliases)
+    public List<string> Aliases { get; set; } = new();
 }

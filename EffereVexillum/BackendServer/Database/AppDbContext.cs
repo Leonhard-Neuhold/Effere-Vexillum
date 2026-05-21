@@ -39,5 +39,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         builder.Entity<Stats>()
             .Property(s => s.CumulatedPoints)
             .HasColumnType("jsonb");
+            
+        builder.Entity<Flag>()
+            .Property(f => f.Aliases)
+            .HasColumnType("jsonb");
     }
 }
