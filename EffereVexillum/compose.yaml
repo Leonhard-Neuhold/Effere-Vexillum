@@ -2,8 +2,8 @@
   backendserver:
     image: backendserver
     build:
-      context: .
-      dockerfile: BackendServer/Dockerfile
+      context: ./BackendServer
+      dockerfile: ./Dockerfile
     ports:
       - "9002:8080"
     environment:
@@ -48,8 +48,8 @@
   frontend:
     image: frontend
     build:
-      context: .
-      dockerfile: Frontend/Dockerfile
+      context: ./Frontend
+      dockerfile: ./Dockerfile
     ports:
       - "9003:80"
     depends_on:

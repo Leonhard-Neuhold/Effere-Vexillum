@@ -93,6 +93,7 @@
     private bool _showResult;
     private bool _wasCorrect;
     private string _resultMessage = "";
+    private Dictionary<string, List<string>> _flagAliases = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -104,6 +105,15 @@
         _isLoading = true;
         try
         {
+            var flagsRes = await Http.GetFromJsonAsync<List<FlagDto>>("/api/flags");
+            if (flagsRes != null)
+            {
+                foreach (var f in flagsRes)
+                {
+                    _flagAliases[f.Name] = f.Aliases ?? new List<string>();
+                }
+            }
+
             var res = await Http.GetFromJsonAsync<List<string>>("/api/pictures/");
             if (res != null)
             {
@@ -179,12 +189,72 @@
         return name.Replace("_", " ").Trim();
     }
 
+    private int ComputeLevenshteinDistance(string source, string target)
+    {
+        if (string.IsNullOrEmpty(source)) return target?.Length ?? 0;
+        if (string.IsNullOrEmpty(target)) return source.Length;
+
+        var sourceLower = source.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+        var targetLower = target.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+
+        int sourceLength = sourceLower.Length;
+        int targetLength = targetLower.Length;
+
+        int[,] distance = new int[sourceLength + 1, targetLength + 1];
+
+        for (int i = 0; i <= sourceLength; distance[i, 0] = i++) { }
+        for (int j = 0; j <= targetLength; distance[0, j] = j++) { }
+
+        for (int i = 1; i <= sourceLength; i++)
+        {
+            for (int j = 1; j <= targetLength; j++)
+            {
+                int cost = (targetLower[j - 1] == sourceLower[i - 1]) ? 0 : 1;
+                distance[i, j] = Math.Min(
+                                    Math.Min(distance[i - 1, j] + 1, distance[i, j - 1] + 1),
+                                    distance[i - 1, j - 1] + cost);
+            }
+        }
+
+        return distance[sourceLength, targetLength];
+    }
+
+    private bool IsGuessAcceptable(string guess, string expected)
+    {
+        if (string.IsNullOrWhiteSpace(guess)) return false;
+
+        var validAnswers = new List<string> { expected };
+        if (_flagAliases.TryGetValue(expected, out var aliases))
+        {
+            validAnswers.AddRange(aliases);
+        }
+
+        foreach (var answer in validAnswers)
+        {
+            if (string.IsNullOrWhiteSpace(answer)) continue;
+
+            var normalizedGuess = guess.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+            var normalizedAnswer = answer.ToLowerInvariant().Replace(" ", "").Replace("-", "");
+
+            if (normalizedGuess == normalizedAnswer)
+                return true;
+
+            var distance = ComputeLevenshteinDistance(normalizedGuess, normalizedAnswer);
+            var maxDistance = Math.Max(1, normalizedAnswer.Length / 4);
+
+            if (distance <= maxDistance)
+                return true;
+        }
+
+        return false;
+    }
+
     private void SubmitGuess()
     {
         if (string.IsNullOrWhiteSpace(_userGuess)) return;
 
         var expected = GetExpectedAnswer(_currentPicture);
-        _wasCorrect = string.Equals(expected, _userGuess.Trim(), StringComparison.OrdinalIgnoreCase);
+        _wasCorrect = IsGuessAcceptable(_userGuess.Trim(), expected);
 
         if (_wasCorrect)
         {
@@ -233,5 +303,11 @@
             var k = rng.Next(n + 1);
             (list[k], list[n]) = (list[n], list[k]);
         }
+    }
+
+    private class FlagDto
+    {
+        public string Name { get; set; } = "";
+        public List<string> Aliases { get; set; } = new();
     }
 }
