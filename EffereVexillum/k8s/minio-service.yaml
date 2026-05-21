@@ -8,12 +8,15 @@ metadata:
     io.kompose.service: minio
   name: minio
 spec:
+  type: NodePort
   ports:
     - name: "9000"
       port: 9000
       targetPort: 9000
+      nodePort: 30090
     - name: "9001"
       port: 9001
       targetPort: 9001
+      nodePort: 30091
   selector:
     io.kompose.service: minio

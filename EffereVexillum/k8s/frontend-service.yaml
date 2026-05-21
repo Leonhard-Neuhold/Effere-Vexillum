@@ -8,9 +8,11 @@ metadata:
     io.kompose.service: frontend
   name: frontend
 spec:
+  type: NodePort
   ports:
     - name: "9003"
       port: 9003
       targetPort: 80
+      nodePort: 30003
   selector:
     io.kompose.service: frontend
