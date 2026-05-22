@@ -112,7 +112,7 @@ using (var scope = app.Services.CreateScope())
                     if (existingFlag == null)
                     {
                         var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        var category = "country";
+                        var category = "Other";
 
                         // Try to find the country in our fetched data
                         var matchedCountry = countryDataList.FirstOrDefault(c => 

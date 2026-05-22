@@ -16,7 +16,7 @@ public static class Endpoints
     {
         app.MapGet("/api/flags", async (AppDbContext db) => 
         {
-            var flags = await db.Flags.Select(f => new { f.Name, f.Aliases }).ToListAsync();
+            var flags = await db.Flags.Select(f => new { f.Name, f.Category, f.Aliases }).ToListAsync();
             return Results.Ok(flags);
         });
 

@@ -4,6 +4,18 @@
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
     <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">Practice Flags</MudText>
     
+    @if (!_isLoading)
+    {
+        <div class="mb-4">
+            <MudSelect T="string" Label="Category" Value="@_selectedCategory" ValueChanged="OnCategoryChanged" Variant="Variant.Outlined">
+                @foreach (var cat in _availableCategories)
+                {
+                    <MudSelectItem Value="@cat">@cat</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    }
+
     @if (_isLoading)
     {
         <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="d-block mx-auto" />
@@ -94,6 +106,10 @@
     private bool _wasCorrect;
     private string _resultMessage = "";
     private Dictionary<string, List<string>> _flagAliases = new();
+    private Dictionary<string, string> _flagCategories = new();
+    
+    private string _selectedCategory = "All";
+    private List<string> _availableCategories = new() { "All" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,6 +127,17 @@
                 foreach (var f in flagsRes)
                 {
                     _flagAliases[f.Name] = f.Aliases ?? new List<string>();
+                    _flagCategories[f.Name] = f.Category ?? "Unknown";
+                    if (!string.IsNullOrEmpty(f.Category) && !_availableCategories.Contains(f.Category))
+                    {
+                        _availableCategories.Add(f.Category);
+                    }
+                }
+                _availableCategories.Sort();
+                if (_availableCategories.Contains("All"))
+                {
+                    _availableCategories.Remove("All");
+                    _availableCategories.Insert(0, "All");
                 }
             }
 
@@ -137,7 +164,17 @@
 
     private void Restart()
     {
-        _picturesToGuess = new List<string>(_allPictures);
+        _picturesToGuess = new List<string>();
+        foreach (var p in _allPictures)
+        {
+            var expected = GetExpectedAnswer(p);
+            var cat = _flagCategories.TryGetValue(expected, out var c) ? c : "Unknown";
+            
+            if (_selectedCategory == "All" || cat == _selectedCategory)
+            {
+                _picturesToGuess.Add(p);
+            }
+        }
         _wrongFlags.Clear();
         Shuffle(_picturesToGuess);
         _totalCount = _picturesToGuess.Count;
@@ -164,6 +201,7 @@
         if (_picturesToGuess.Count == 0)
         {
             _finished = true;
+            StateHasChanged();
             return;
         }
         _currentPicture = _picturesToGuess[0];
@@ -293,6 +331,12 @@
             _ = NextFlagAsync();
     }
 
+    private void OnCategoryChanged(string? newCategory)
+    {
+        _selectedCategory = newCategory ?? "All";
+        Restart();
+    }
+
     private static void Shuffle<T>(List<T> list)
     {
         var rng = new Random();
@@ -308,6 +352,8 @@
     private class FlagDto
     {
         public string Name { get; set; } = "";
+        public string Category { get; set; } = "";
         public List<string> Aliases { get; set; } = new();
     }
 }
+
