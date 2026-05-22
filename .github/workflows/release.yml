@@ -2,8 +2,6 @@ name: Automated Release
 
 on:
   push:
-    branches:
-      - master
     tags:
       - 'v*'
       
@@ -13,6 +11,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+
+    if: github.event.base_ref == 'refs/heads/master'
+    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
