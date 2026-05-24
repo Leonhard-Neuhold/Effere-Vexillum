@@ -1,0 +1,94 @@
+@page "/results/{GameId:guid}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+    <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">Game Results</MudText>
+
+    @if (_isLoading)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="mx-auto" Style="display:block;" />
+    }
+    else if (_errorMessage != null)
+    {
+        <MudAlert Severity="Severity.Error">@_errorMessage</MudAlert>
+    }
+    else if (_results != null)
+    {
+        @if (_results.Leaderboard.Any())
+        {
+            var winner = _results.Leaderboard.First();
+            <MudPaper Class="pa-4 mb-8 d-flex flex-column align-center" Elevation="3">
+                <MudText Typo="Typo.h4" Color="Color.Success">Winner: @winner.UserName 🏆</MudText>
+                <MudText Typo="Typo.h5">Score: @winner.Score</MudText>
+            </MudPaper>
+
+            <MudTable Items="_results.Leaderboard" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="1">
+                <HeaderContent>
+                    <MudTh>Rank</MudTh>
+                    <MudTh>Player</MudTh>
+                    <MudTh>Points</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Rank">@(_results.Leaderboard.IndexOf(context) + 1)</MudTd>
+                    <MudTd DataLabel="Player">@context.UserName</MudTd>
+                    <MudTd DataLabel="Points">@context.Score</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info">No results available for this game.</MudAlert>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" OnClick="GoHome">Back to Home</MudButton>
+    }
+</MudContainer>
+
+@code {
+    [Parameter]
+    public Guid GameId { get; set; }
+
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private GameResultsDto? _results;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _results = await Http.GetFromJsonAsync<GameResultsDto>($"/api/games/{GameId}/results");
+            if (_results == null)
+            {
+                _errorMessage = "Failed to load results.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "An error occurred while loading results.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void GoHome()
+    {
+        Nav.NavigateTo("/");
+    }
+
+    public class GameResultsDto
+    {
+        public Guid GameId { get; set; }
+        public List<PlayerScoreDto> Leaderboard { get; set; } = new();
+    }
+
+    public class PlayerScoreDto
+    {
+        public string UserId { get; set; } = "";
+        public string UserName { get; set; } = "";
+        public int Score { get; set; }
+    }
+}
+

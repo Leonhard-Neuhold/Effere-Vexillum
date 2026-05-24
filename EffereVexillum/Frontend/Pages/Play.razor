@@ -25,7 +25,7 @@ else
     <MudText Typo="Typo.h5">Guess the flag!</MudText>
     @if (!string.IsNullOrEmpty(_currentImageObject))
     {
-        <img src="/api/pictures/@_currentImageObject" alt="Flag to guess" width="400" height="300" style="border: 1px solid black;" />
+        <img src="/api/drawings/@_currentImageObject" alt="Flag to guess" width="400" height="300" style="border: 1px solid black;" />
     }
     <MudTextField @bind-Value="_guess" Label="Your Guess" />
     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitGuess" Class="mt-4">Submit Guess</MudButton>
@@ -73,9 +73,9 @@ else
             await InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On<Guid>("GameFinished", (_) =>
+        _hubConnection.On<Guid>("GameFinished", (gameId) =>
         {
-            Nav.NavigateTo($"/lobby/{LobbyId}");
+            Nav.NavigateTo($"/results/{gameId}");
         });
 
         await _hubConnection.StartAsync();

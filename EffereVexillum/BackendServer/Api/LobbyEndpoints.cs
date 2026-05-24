@@ -225,7 +225,7 @@ public static class LobbyEndpoints
         });
 
         // Join endpoint using the custom join link, accessible globally if authorized
-        app.MapGet("/join/{joinLink}", async (AppDbContext db, ClaimsPrincipal user, string joinLink, IHubContext<GameHub> hubContext) =>
+        app.MapGet("/api/join/{joinLink}", async (AppDbContext db, ClaimsPrincipal user, string joinLink, IHubContext<GameHub> hubContext) =>
         {
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId == null) return Results.Unauthorized();
@@ -343,6 +343,37 @@ public static class LobbyEndpoints
             return Results.Ok(new { Path = objectName });
         }).RequireAuthorization()
           .DisableAntiforgery();
+
+        // Get game results
+        app.MapGet("/api/games/{id:guid}/results", async (AppDbContext db, ClaimsPrincipal user, Guid id) =>
+        {
+            var game = await db.Games
+                .Include(g => g.Stats)
+                .FirstOrDefaultAsync(g => g.Id == id);
+
+            if (game == null) return Results.NotFound("Game not found.");
+
+            var userIds = game.Stats?.CumulatedPoints?.Keys.ToList() ?? new List<string>();
+            var users = await db.Users
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.UserName ?? "Unknown");
+
+            var leaderboard = game.Stats?.CumulatedPoints?
+                .Select(kvp => new
+                {
+                    UserId = kvp.Key,
+                    UserName = users.GetValueOrDefault(kvp.Key) ?? "Unknown",
+                    Score = kvp.Value
+                })
+                .OrderByDescending(x => x.Score)
+                .ToList();
+
+            return Results.Ok(new
+            {
+                GameId = game.Id,
+                Leaderboard = leaderboard
+            });
+        }).RequireAuthorization();
     }
 }
 

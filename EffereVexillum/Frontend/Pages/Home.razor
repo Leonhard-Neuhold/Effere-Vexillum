@@ -86,7 +86,7 @@
     {
         if (!string.IsNullOrWhiteSpace(JoinCode))
         {
-            var response = await Http.GetAsync($"/join/{JoinCode}");
+            var response = await Http.GetAsync($"/api/join/{JoinCode}");
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<JoinResponse>();
