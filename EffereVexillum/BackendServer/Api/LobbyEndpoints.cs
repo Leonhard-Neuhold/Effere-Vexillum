@@ -371,6 +371,7 @@ public static class LobbyEndpoints
             return Results.Ok(new
             {
                 GameId = game.Id,
+                LobbyId = game.LobbyId,
                 Leaderboard = leaderboard
             });
         }).RequireAuthorization();
@@ -617,10 +618,11 @@ public static class GameLogic
             GameTimers.StartDrawingTimer(sp, gameId, round.Game.CurrentRoundNumber, lobby.TimerForDrawing);
         }
         else if (round.RoundNumber == lobby.NumberOfRounds)
-        {
-            round.Game.GameFinished = true;
-            await db.SaveChangesAsync();
-            await hubContext.Clients.Group(lobby.Id.ToString()).SendAsync("GameFinished", round.Game.Id);
-        }
+         {
+             round.Game.GameFinished = true;
+             lobby.GameStarted = false;
+             await db.SaveChangesAsync();
+             await hubContext.Clients.Group(lobby.Id.ToString()).SendAsync("GameFinished", round.Game.Id);
+         }
     }
 }

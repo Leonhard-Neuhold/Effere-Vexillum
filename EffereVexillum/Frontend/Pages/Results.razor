@@ -41,7 +41,10 @@
             <MudAlert Severity="Severity.Info">No results available for this game.</MudAlert>
         }
 
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" OnClick="GoHome">Back to Home</MudButton>
+        <div Class="d-flex gap-4 mt-6">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GoBackToLobby">Go back to lobby</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="GoHome">Back to Home</MudButton>
+        </div>
     }
 </MudContainer>
 
@@ -78,9 +81,18 @@
         Nav.NavigateTo("/");
     }
 
+    private void GoBackToLobby()
+    {
+        if (_results != null)
+        {
+            Nav.NavigateTo($"/lobby/{_results.LobbyId}");
+        }
+    }
+
     public class GameResultsDto
     {
         public Guid GameId { get; set; }
+        public Guid LobbyId { get; set; }
         public List<PlayerScoreDto> Leaderboard { get; set; } = new();
     }
 
