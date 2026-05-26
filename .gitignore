@@ -1,6 +1,7 @@
 .idea/
 obj/
 bin/
+/EffereVexillum/flags
 
 /EffereVexillum/FrontendClient/publish/wwwroot/css/app.css
 /EffereVexillum/FrontendClient/publish/wwwroot/css/app.css.br
