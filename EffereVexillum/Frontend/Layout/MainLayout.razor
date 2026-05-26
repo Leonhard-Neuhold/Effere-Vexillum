@@ -12,6 +12,9 @@
         <MudSpacer />
         <MudButton Href="/login" Color="Color.Inherit">Login</MudButton>
         <MudButton Href="/register" Color="Color.Inherit">Register</MudButton>
+        <MudTooltip Text="Logout">
+            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="Logout" />
+        </MudTooltip>
     </MudAppBar>
     <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
         <MudDrawerHeader>
@@ -29,8 +32,17 @@
 @code {
     bool _drawerOpen = true;
 
+    [Inject] HttpClient Http { get; set; } = default!;
+    [Inject] NavigationManager Nav { get; set; } = default!;
+
     void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
+    }
+
+    async Task Logout()
+    {
+        await Http.PostAsync("/api/auth/logout", null);
+        Nav.NavigateTo("/", true);
     }
 }
