@@ -4,9 +4,9 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @implements IAsyncDisposable
 
-<MudText Typo="Typo.h4" GutterBottom="true">Lobby @LobbyId</MudText>
+<MudText Typo="Typo.h4" GutterBottom="true">@(lobby?.Name ?? $"Lobby {LobbyId}")</MudText>
 
-<MudAlert Severity="Severity.Info">Join Code: @lobby?.UniqueJoinLink</MudAlert>
+<MudAlert Severity="Severity.Info" Class="mb-2">Join Code: @lobby?.UniqueJoinLink</MudAlert>
 <MudAlert Severity="Severity.Info">Join Link: @GetJoinLink()</MudAlert>
 
 @if (lobby == null)
@@ -84,6 +84,7 @@ else
     public class LobbyDto
     {
         public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
         public List<JoinedPlayerDto> JoinedPlayers { get; set; } = new();
         public string UniqueJoinLink { get; set; } = string.Empty;
     }

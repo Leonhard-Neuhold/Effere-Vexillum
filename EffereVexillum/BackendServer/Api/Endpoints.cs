@@ -19,15 +19,59 @@ public static class Endpoints
     {
         var userGroup = app.MapGroup("/api/user").RequireAuthorization();
 
-        userGroup.MapGet("/profile", async (ClaimsPrincipal claimsPrincipal, UserManager<IdentityUser> userManager) =>
+        userGroup.MapGet("/profile", async (ClaimsPrincipal claimsPrincipal, UserManager<IdentityUser> userManager, AppDbContext db) =>
         {
             var user = await userManager.GetUserAsync(claimsPrincipal);
             if (user == null) return Results.Unauthorized();
+
+            // Fetch completed games containing the user
+            // We load into memory first if EF Core can't translate dictionary properly here
+            var allFinishedGames = await db.Games
+                .Include(g => g.Stats)
+                .Include(g => g.Lobby)
+                .Where(g => g.GameFinished && g.Stats != null)
+                .OrderByDescending(g => g.Lobby!.CreationDate)
+                .Take(100) // limit logic for safety if lots of games
+                .ToListAsync();
+
+            var userGames = new List<object>();
+
+            foreach (var g in allFinishedGames)
+            {
+                if (g.Stats?.CumulatedPoints != null && g.Stats.CumulatedPoints.ContainsKey(user.Id))
+                {
+                    var userScore = g.Stats.CumulatedPoints[user.Id];
+
+                    // Calculate placement
+                    var scores = g.Stats.CumulatedPoints.Values.OrderByDescending(v => v).Distinct().ToList();
+                    var placement = scores.IndexOf(userScore) + 1; // 1-based placement
+                    
+                    string placementString = placement switch
+                    {
+                        1 => "1st",
+                        2 => "2nd",
+                        3 => "3rd",
+                        _ => $"{placement}th"
+                    };
+
+                    userGames.Add(new
+                    {
+                        Date = g.Lobby?.CreationDate ?? DateTime.UtcNow,
+                        LobbyName = g.Lobby?.Name ?? "Unknown",
+                        Score = userScore,
+                        Placement = placementString
+                    });
+                }
+            }
+
+            var topGames = userGames.OrderByDescending(x => ((dynamic)x).Score).Take(3).ToList();
+
             return Results.Ok(new
             {
                 user.UserName,
                 user.Email,
-                user.TwoFactorEnabled
+                user.TwoFactorEnabled,
+                TopGames = topGames
             });
         });
 

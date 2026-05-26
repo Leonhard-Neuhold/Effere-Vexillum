@@ -90,27 +90,27 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td>2026-05-20</td>
-                        <td>Fun Flags</td>
-                        <td>4500</td>
-                        <td>1st</td>
-                    </tr>
-                    <tr>
-                        <td>2026-05-22</td>
-                        <td>Hardcore Guesses</td>
-                        <td>3100</td>
-                        <td>3rd</td>
-                    </tr>
-                    <tr>
-                        <td>2026-05-25</td>
-                        <td>Evening Chill</td>
-                        <td>5200</td>
-                        <td>2nd</td>
-                    </tr>
+                    @if (profileModel.TopGames != null && profileModel.TopGames.Any())
+                    {
+                        foreach (var game in profileModel.TopGames)
+                        {
+                            <tr>
+                                <td>@game.Date.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@game.LobbyName</td>
+                                <td>@game.Score</td>
+                                <td>@game.Placement</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">No games played yet.</td>
+                        </tr>
+                    }
                 </tbody>
             </MudSimpleTable>
-            <MudText Typo="Typo.caption" Class="mt-2 text-muted">Note: The stats above are placeholders.</MudText>
+            <MudText Typo="Typo.caption" Class="mt-2 text-muted">Note: Only displaying top 3 highest scoring games.</MudText>
         </MudPaper>
     </MudItem>
 </MudGrid>
@@ -243,6 +243,15 @@
         public string Email { get; set; } = "";
         public string UserName { get; set; } = "";
         public bool TwoFactorEnabled { get; set; }
+        public List<GameStatDto> TopGames { get; set; } = new();
+    }
+
+    public class GameStatDto
+    {
+        public DateTime Date { get; set; }
+        public string LobbyName { get; set; } = "";
+        public int Score { get; set; }
+        public string Placement { get; set; } = "";
     }
 
     public class PasswordModel
