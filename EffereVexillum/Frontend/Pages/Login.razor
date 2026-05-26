@@ -5,13 +5,27 @@
 <MudText Typo="Typo.h4" GutterBottom="true">Login</MudText>
 <MudPaper Class="pa-4" MaxWidth="400px">
     <MudForm @ref="form" @bind-IsValid="@success">
-        <MudTextField @bind-Value="loginModel.Email" Label="Email" Required="true" RequiredError="Email is required!" OnKeyDown="HandleKeyDown" />
-        <MudTextField @bind-Value="loginModel.Password" Label="Password" InputType="InputType.Password" Required="true" RequiredError="Password is required!" OnKeyDown="HandleKeyDown" />
+        @if (!requiresTwoFactor)
+        {
+            <MudTextField @bind-Value="loginModel.Email" Label="Email" Required="true" RequiredError="Email is required!" OnKeyDown="HandleKeyDown" />
+            <MudTextField @bind-Value="loginModel.Password" Label="Password" InputType="InputType.Password" Required="true" RequiredError="Password is required!" OnKeyDown="HandleKeyDown" />
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-3">Two-Factor Authentication is required.</MudAlert>
+            <MudTextField @bind-Value="loginModel.TwoFactorCode" Label="Authenticator Code (or leave blank if using Recovery Code)" OnKeyDown="HandleKeyDown" />
+            <MudTextField @bind-Value="loginModel.TwoFactorRecoveryCode" Label="Recovery Code" OnKeyDown="HandleKeyDown" />
+        }
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" OnClick="Submit" Class="mt-4">Login</MudButton>
+        @if (requiresTwoFactor)
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="() => requiresTwoFactor = false" Class="mt-4 ml-2">Back</MudButton>
+        }
     </MudForm>
 </MudPaper>
 @code {
     bool success;
+    bool requiresTwoFactor;
     MudForm? form;
     LoginModel loginModel = new();
     
@@ -39,7 +53,15 @@
             else
             {
                 var errorMsg = await GetErrorMessage(response);
-                await DialogService.ShowMessageBoxAsync("Login Failed", errorMsg, yesText: "OK");
+                if (errorMsg.Contains("TwoFactor", StringComparison.OrdinalIgnoreCase))
+                {
+                    requiresTwoFactor = true;
+                    StateHasChanged();
+                }
+                else
+                {
+                    await DialogService.ShowMessageBoxAsync("Login Failed", errorMsg, yesText: "OK");
+                }
             }
         }
     }
@@ -48,6 +70,10 @@
         try
         {
             var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+            if (problem?.Detail != null && problem.Detail.Contains("TwoFactor", StringComparison.OrdinalIgnoreCase))
+            {
+                return problem.Detail;
+            }
             if (problem?.Errors != null && problem.Errors.Any())
             {
                 var errors = problem.Errors.SelectMany(kvp => kvp.Value).ToList();
@@ -65,10 +91,13 @@
     {
         public string Email { get; set; } = "";
         public string Password { get; set; } = "";
+        public string? TwoFactorCode { get; set; }
+        public string? TwoFactorRecoveryCode { get; set; }
     }
     public class ProblemDetails
     {
         public string? Title { get; set; }
+        public string? Detail { get; set; }
         public Dictionary<string, string[]>? Errors { get; set; }
     }
 }
