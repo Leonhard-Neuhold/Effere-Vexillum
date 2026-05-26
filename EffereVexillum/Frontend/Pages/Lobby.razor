@@ -7,6 +7,7 @@
 <MudText Typo="Typo.h4" GutterBottom="true">Lobby @LobbyId</MudText>
 
 <MudAlert Severity="Severity.Info">Join Code: @lobby?.UniqueJoinLink</MudAlert>
+<MudAlert Severity="Severity.Info">Join Link: @GetJoinLink()</MudAlert>
 
 @if (lobby == null)
 {
@@ -18,7 +19,7 @@ else
     <MudList T="string">
         @foreach (var player in lobby.JoinedPlayers)
         {
-            <MudListItem T="string">@player</MudListItem>
+            <MudListItem T="string">@player.UserName</MudListItem>
         }
     </MudList>
 
@@ -41,9 +42,10 @@ else
 
         hubConnection.On<string>("PlayerJoined", async (userId) =>
         {
-            if (lobby != null && !lobby.JoinedPlayers.Contains(userId))
+            // Instead of just adding ID, re-fetch the lobby to get the usernames
+            if (lobby != null && !lobby.JoinedPlayers.Any(p => p.Id == userId))
             {
-                lobby.JoinedPlayers.Add(userId);
+                lobby = await Http.GetFromJsonAsync<LobbyDto>($"/api/lobbies/{LobbyId}");
                 await InvokeAsync(StateHasHasChanged);
             }
         });
@@ -58,6 +60,11 @@ else
     }
 
     private void StateHasHasChanged() => StateHasChanged();
+
+    private string GetJoinLink()
+    {
+        return lobby?.UniqueJoinLink != null ? $"{Nav.BaseUri}join/{lobby.UniqueJoinLink}" : string.Empty;
+    }
 
     private async Task StartGame()
     {
@@ -77,8 +84,14 @@ else
     public class LobbyDto
     {
         public Guid Id { get; set; }
-        public List<string> JoinedPlayers { get; set; } = new();
+        public List<JoinedPlayerDto> JoinedPlayers { get; set; } = new();
         public string UniqueJoinLink { get; set; } = string.Empty;
+    }
+
+    public class JoinedPlayerDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
     }
 
     public async ValueTask DisposeAsync()

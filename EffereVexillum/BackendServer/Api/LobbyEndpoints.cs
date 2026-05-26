@@ -53,7 +53,36 @@ public static class LobbyEndpoints
         lobbiesGroup.MapGet("/{id:guid}", async (AppDbContext db, Guid id) =>
         {
             var lobby = await db.Lobbies.FindAsync(id);
-            return lobby is not null ? Results.Ok(lobby) : Results.NotFound();
+            if (lobby is null) return Results.NotFound();
+
+            var userNames = await db.Users
+                .Where(u => lobby.JoinedPlayers.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.UserName ?? "Unknown");
+
+            var joinedPlayersData = lobby.JoinedPlayers.Select(p => new
+            {
+                Id = p,
+                UserName = userNames.GetValueOrDefault(p) ?? "Unknown"
+            }).ToList();
+
+            var result = new
+            {
+                lobby.Id,
+                lobby.Name,
+                lobby.CreationDate,
+                lobby.UniqueLobbyUrl,
+                lobby.UniqueJoinLink,
+                lobby.GameMode,
+                lobby.GameAdminId,
+                lobby.NumberOfRounds,
+                lobby.CustomFilter,
+                lobby.GameStarted,
+                lobby.TimerForDrawing,
+                lobby.TimerForGuessing,
+                JoinedPlayers = joinedPlayersData
+            };
+
+            return Results.Ok(result);
         });
 
         // Get current game details

@@ -1,0 +1,65 @@
+@page "/join/{JoinCode}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@using System.Net.Http.Json
+
+<MudText Typo="Typo.h5">Joining lobby...</MudText>
+<MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+<MudAlert Severity="Severity.Error" Class="mt-4" Style="@(showError ? "" : "display:none;")">
+    @errorMessage
+</MudAlert>
+
+@code {
+    [Parameter]
+    public string JoinCode { get; set; } = string.Empty;
+
+    private bool showError = false;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await Http.GetAsync($"/api/join/{JoinCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<JoinResult>();
+                if (result != null && !string.IsNullOrEmpty(result.Url))
+                {
+                    Nav.NavigateTo(result.Url);
+                }
+                else
+                {
+                    showError = true;
+                    errorMessage = "Failed to parse join response.";
+                    StateHasChanged();
+                }
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                showError = true;
+                errorMessage = "Invalid join link or lobby not found.";
+                StateHasChanged();
+            }
+            else
+            {
+                showError = true;
+                errorMessage = "An error occurred while joining the lobby.";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            showError = true;
+            errorMessage =$"An unexpected error occurred: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    public class JoinResult
+    {
+        public string Url { get; set; } = string.Empty;
+    }
+}
+

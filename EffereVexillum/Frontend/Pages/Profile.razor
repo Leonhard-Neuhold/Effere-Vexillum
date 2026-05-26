@@ -1,52 +1,264 @@
 @page "/profile"
+@using Microsoft.AspNetCore.Authorization
 @inject HttpClient Http
 @inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+@attribute [Authorize]
 
 <MudText Typo="Typo.h4" GutterBottom="true">Profile</MudText>
 
-<MudPaper Class="pa-4" MaxWidth="600px">
-    <MudForm @ref="form" @bind-IsValid="@success">
-        <MudTextField @bind-Value="info.Email" Label="Email" Required="true" RequiredError="Email is required!" />
-        <MudTextField @bind-Value="info.NewPassword" Label="New Password" InputType="InputType.Password" />
-        <MudTextField @bind-Value="info.OldPassword" Label="Old Password" InputType="InputType.Password" />
-        
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" OnClick="Submit" Class="mt-4">Update Profile</MudButton>
-    </MudForm>
-</MudPaper>
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6" GutterBottom="true">Account Settings</MudText>
+            <MudForm @ref="form" @bind-IsValid="@success">
+                <MudTextField @bind-Value="profileModel.Email" Label="Email" Disabled="true" />
+                <MudTextField @bind-Value="profileModel.UserName" Label="Username" Required="true" RequiredError="Username is required!" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" OnClick="UpdateUsername" Class="mt-4">Update Username</MudButton>
+            </MudForm>
+        </MudPaper>
+
+        <MudPaper Class="pa-4 mt-4">
+            <MudText Typo="Typo.h6" GutterBottom="true">Security</MudText>
+            <MudForm @ref="passwordForm" @bind-IsValid="@passwordSuccess">
+                <MudTextField @bind-Value="passwordModel.OldPassword" Label="Current Password" InputType="InputType.Password" Required="true" />
+                <MudTextField @bind-Value="passwordModel.NewPassword" Label="New Password" InputType="InputType.Password" Required="true" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!passwordSuccess)" OnClick="UpdatePassword" Class="mt-4">Change Password</MudButton>
+            </MudForm>
+            
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.h6" GutterBottom="true">Two-Factor Authentication (2FA)</MudText>
+            @if (profileModel.TwoFactorEnabled)
+            {
+                <MudAlert Severity="Severity.Success">2FA is currently enabled.</MudAlert>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Disable2FA" Class="mt-2">Disable 2FA</MudButton>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">2FA is currently disabled.</MudAlert>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Start2FASetup" Class="mt-2">Setup 2FA</MudButton>
+            }
+
+            @if (show2FaSetup)
+            {
+                <MudPaper Class="pa-4 mt-4" Elevation="3">
+                    <MudText Typo="Typo.h6">Configure Authenticator App</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-2">Scan the QR code below with your authenticator app (e.g., Google Authenticator, Authy):</MudText>
+                    
+                    <div class="d-flex justify-center mb-4">
+                        <img src="@($"https://api.qrserver.com/v1/create-qr-code/?data={Uri.EscapeDataString(authenticatorUri)}&size=200x200")" alt="2FA QR Code" width="200" height="200" />
+                    </div>
+
+                    <MudText Typo="Typo.body2" Class="mb-2">Or enter this key manually: <strong>@sharedKey</strong></MudText>
+                    
+                    <MudTextField @bind-Value="verificationCode" Label="Verification Code" HelperText="Enter the 6-digit code from your app" Required="true" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="Enable2FA" Class="mt-4">Verify & Enable</MudButton>
+                    <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="() => show2FaSetup = false" Class="mt-4 ml-2">Cancel</MudButton>
+                </MudPaper>
+            }
+            
+            @if (recoveryCodes.Any())
+            {
+                <MudPaper Class="pa-4 mt-4" Elevation="3">
+                    <MudAlert Severity="Severity.Success">2FA Enabled Successfully!</MudAlert>
+                    <MudText Typo="Typo.body2" Class="mt-2 text-danger"><strong>SAVE THESE RECOVERY CODES!</strong> If you lose your device, these codes are the only way to access your account.</MudText>
+                    <MudList T="string" Dense="true" Class="mt-2">
+                        @foreach (var recCode in recoveryCodes)
+                        {
+                            <MudListItem T="string"><code>@recCode</code></MudListItem>
+                        }
+                    </MudList>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => recoveryCodes.Clear()" Class="mt-2">I have saved them</MudButton>
+                </MudPaper>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6" GutterBottom="true">Game Stats</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Here you will be able to inspect your previous games, scores, and statistics.</MudText>
+            
+            <MudSimpleTable>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Lobby Name</th>
+                        <th>Score</th>
+                        <th>Placement</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2026-05-20</td>
+                        <td>Fun Flags</td>
+                        <td>4500</td>
+                        <td>1st</td>
+                    </tr>
+                    <tr>
+                        <td>2026-05-22</td>
+                        <td>Hardcore Guesses</td>
+                        <td>3100</td>
+                        <td>3rd</td>
+                    </tr>
+                    <tr>
+                        <td>2026-05-25</td>
+                        <td>Evening Chill</td>
+                        <td>5200</td>
+                        <td>2nd</td>
+                    </tr>
+                </tbody>
+            </MudSimpleTable>
+            <MudText Typo="Typo.caption" Class="mt-2 text-muted">Note: The stats above are placeholders.</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
 @code {
     bool success;
+    bool passwordSuccess;
     MudForm? form;
-    InfoModel info = new();
+    MudForm? passwordForm;
+    ProfileModel profileModel = new();
+    PasswordModel passwordModel = new();
+
+    bool show2FaSetup = false;
+    string sharedKey = "";
+    string authenticatorUri = "";
+    string verificationCode = "";
+    List<string> recoveryCodes = new();
 
     protected override async Task OnInitializedAsync()
     {
-        var response = await Http.GetAsync("/manage/info");
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        var response = await Http.GetAsync("/api/user/profile");
         if (response.IsSuccessStatusCode)
         {
-            var data = await response.Content.ReadFromJsonAsync<InfoModel>();
-            if (data != null) info.Email = data.Email;
+            var data = await response.Content.ReadFromJsonAsync<ProfileModel>();
+            if (data != null) 
+            {
+                profileModel = data;
+            }
         }
     }
 
-    private async Task Submit()
+    private async Task UpdateUsername()
     {
-        if (form is not null)
-        {
-            await form.ValidateAsync();
-        }
         if (form is { IsValid: true }) 
         {
-            await Http.PostAsJsonAsync("/manage/info", info);
-            Nav.NavigateTo("/");
+            var response = await Http.PutAsJsonAsync("/api/user/username", new { NewUsername = profileModel.UserName });
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Username updated successfully!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to update username.", Severity.Error);
+            }
         }
     }
 
-    public class InfoModel
+    private async Task UpdatePassword()
+    {
+        if (passwordForm is { IsValid: true }) 
+        {
+            var response = await Http.PostAsJsonAsync("/api/auth/manage/info", new { newPassword = passwordModel.NewPassword, oldPassword = passwordModel.OldPassword });
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Password updated successfully!", Severity.Success);
+                passwordModel = new PasswordModel();
+            }
+            else
+            {
+                Snackbar.Add("Failed to update password.", Severity.Error);
+            }
+        }
+    }
+
+    private async Task Start2FASetup()
+    {
+        var response = await Http.GetAsync("/api/user/2fa-setup");
+        if (response.IsSuccessStatusCode)
+        {
+            var data = await response.Content.ReadFromJsonAsync<TwoFactorSetupResponse>();
+            if (data != null)
+            {
+                sharedKey = data.SharedKey;
+                authenticatorUri = data.AuthenticatorUri;
+                show2FaSetup = true;
+                recoveryCodes.Clear();
+            }
+        }
+        else
+        {
+            Snackbar.Add("Failed to initialize 2FA setup.", Severity.Error);
+        }
+    }
+
+    private async Task Enable2FA()
+    {
+        if (string.IsNullOrWhiteSpace(verificationCode)) return;
+
+        var response = await Http.PostAsJsonAsync("/api/user/2fa-enable", new { Code = verificationCode.Replace(" ", "") });
+        if (response.IsSuccessStatusCode)
+        {
+            var data = await response.Content.ReadFromJsonAsync<TwoFactorEnableResponse>();
+            if (data != null && data.RecoveryCodes != null)
+            {
+                recoveryCodes = data.RecoveryCodes.ToList();
+            }
+            
+            show2FaSetup = false;
+            verificationCode = "";
+            Snackbar.Add("2FA enabled successfully!", Severity.Success);
+            await LoadProfile();
+        }
+        else
+        {
+            Snackbar.Add("Verification failed. Please check the code and try again.", Severity.Error);
+        }
+    }
+
+    private async Task Disable2FA()
+    {
+        var response = await Http.PostAsync("/api/user/2fa-disable", null);
+        if (response.IsSuccessStatusCode)
+        {
+            Snackbar.Add("2FA disabled successfully.", Severity.Success);
+            await LoadProfile();
+        }
+        else
+        {
+            Snackbar.Add("Failed to disable 2FA.", Severity.Error);
+        }
+    }
+
+    public class ProfileModel
     {
         public string Email { get; set; } = "";
-        public string? NewPassword { get; set; }
-        public string? OldPassword { get; set; }
+        public string UserName { get; set; } = "";
+        public bool TwoFactorEnabled { get; set; }
+    }
+
+    public class PasswordModel
+    {
+        public string NewPassword { get; set; } = "";
+        public string OldPassword { get; set; } = "";
+    }
+
+    public class TwoFactorSetupResponse
+    {
+        public string SharedKey { get; set; } = "";
+        public string AuthenticatorUri { get; set; } = "";
+    }
+
+    public class TwoFactorEnableResponse
+    {
+        public string[]? RecoveryCodes { get; set; }
     }
 }
-
