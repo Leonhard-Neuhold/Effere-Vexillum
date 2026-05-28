@@ -76,6 +76,21 @@ using (var scope = app.Services.CreateScope())
         // ignored
     }
 
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""UserProfiles"" (
+                ""UserId"" text NOT NULL,
+                ""AvatarDataUrl"" text NOT NULL,
+                CONSTRAINT ""PK_UserProfiles"" PRIMARY KEY (""UserId"")
+            );
+        ");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not create UserProfiles table: {ex.Message}");
+    }
+
     var minioClient = scope.ServiceProvider.GetRequiredService<IMinioClient>();
     
     try 

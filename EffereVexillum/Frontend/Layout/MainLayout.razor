@@ -1,48 +1,132 @@
 ﻿@inherits LayoutComponentBase
 
-<MudThemeProvider />
+<MudThemeProvider Theme="_theme" />
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
+    <MudAppBar Elevation="4" Style="margin: 16px; border-radius: 8px; width: auto; left: 0; right: 0;">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
         <MudText Typo="Typo.h5" Class="ml-3">Effere Vexillum</MudText>
         <MudSpacer />
-        <MudButton Href="/login" Color="Color.Inherit">Login</MudButton>
-        <MudButton Href="/register" Color="Color.Inherit">Register</MudButton>
-        <MudTooltip Text="Logout">
-            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="Logout" />
-        </MudTooltip>
+        @if (_isLoggedIn)
+        {
+            <MudMenu @onclick="AvatarToggle" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Open="_avatarOpen">
+                <ActivatorContent>
+                    <MudAvatar Color="Color.Secondary" Style="cursor: pointer;">
+                        @if (!string.IsNullOrEmpty(_userAvatarUrl))
+                        {
+                            <img src="@GetValidAvatarUrl(_userAvatarUrl)" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" alt="avatar"/>
+                        }
+                        else
+                        {
+                            @_userName[..Math.Min(1, _userName.Length)].ToUpper()
+                        }
+                    </MudAvatar>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem Href="/profile">Profile</MudMenuItem>
+                    <MudMenuItem OnClick="Logout">Logout</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        }
+        else
+        {
+            <MudButton Href="/login" Color="Color.Inherit">Login</MudButton>
+            <MudButton Href="/register" Color="Color.Inherit">Register</MudButton>
+        }
     </MudAppBar>
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="4" Variant="DrawerVariant.Temporary">
         <MudDrawerHeader>
             <MudText Typo="Typo.h6">Navigation</MudText>
         </MudDrawerHeader>
         <NavMenu />
     </MudDrawer>
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="my-4">
-            @Body
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="my-10">
+            <div style="background-color: rgba(255, 255, 255, 0.2); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(150, 150, 150, 0.5); border-radius: 16px; padding: 24px; min-height: calc(100vh - 120px);">
+                @Body
+            </div>
         </MudContainer>
     </MudMainContent>
 </MudLayout>
 
 @code {
-    bool _drawerOpen = true;
+    bool _drawerOpen;
+    bool _avatarOpen;
+    bool _isLoggedIn;
+    string _userName = "";
+    string _userAvatarUrl = "";
 
-    [Inject] HttpClient Http { get; set; } = default!;
-    [Inject] NavigationManager Nav { get; set; } = default!;
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            AppbarBackground = "#FF7500",
+            Primary = "#FF7500"
+        },
+        PaletteDark = new PaletteDark()
+        {
+            AppbarBackground = "#FF7500",
+            Primary = "#FF7500"
+        }
+    };
+
+    [Inject] HttpClient Http { get; set; } = null!;
+    [Inject] NavigationManager Nav { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var res = await Http.GetAsync("/api/user/profile");
+            if (res.IsSuccessStatusCode)
+            {
+                var profile = await res.Content.ReadFromJsonAsync<UserProfileDto>();
+                if (profile != null)
+                {
+                    _isLoggedIn = true;
+                    _userName = profile.UserName;
+                    _userAvatarUrl = profile.AvatarDataUrl;
+                }
+            }
+        }
+        catch
+        {
+            // not logged in
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
 
     void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
     }
 
+    void AvatarToggle()
+    {
+        _avatarOpen = !_avatarOpen;
+    }
+
+    string GetValidAvatarUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "";
+        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase) || url.StartsWith("data:image", StringComparison.OrdinalIgnoreCase))
+            return url;
+        return $"data:image/jpeg;base64,{url}";
+    }
+
     async Task Logout()
     {
         await Http.PostAsync("/api/auth/logout", null);
         Nav.NavigateTo("/", true);
+    }
+
+    public class UserProfileDto
+    {
+        public string UserName { get; init; } = string.Empty;
+        public string AvatarDataUrl { get; init; } = string.Empty;
     }
 }

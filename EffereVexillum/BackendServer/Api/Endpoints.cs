@@ -66,13 +66,35 @@ public static class Endpoints
 
             var topGames = userGames.OrderByDescending(x => ((dynamic)x).Score).Take(3).ToList();
 
+            var userProfile = await db.UserProfiles.FindAsync(user.Id);
+
             return Results.Ok(new
             {
                 user.UserName,
                 user.Email,
                 user.TwoFactorEnabled,
+                AvatarDataUrl = userProfile?.AvatarDataUrl ?? "",
                 TopGames = topGames
             });
+        });
+
+        userGroup.MapPut("/avatar", async (ClaimsPrincipal claimsPrincipal, UserManager<IdentityUser> userManager, AppDbContext db, UpdateAvatarRequest req) =>
+        {
+            var user = await userManager.GetUserAsync(claimsPrincipal);
+            if (user == null) return Results.Unauthorized();
+            
+            var userProfile = await db.UserProfiles.FindAsync(user.Id);
+            if (userProfile == null)
+            {
+                userProfile = new UserProfile { UserId = user.Id, AvatarDataUrl = req.AvatarDataUrl };
+                db.UserProfiles.Add(userProfile);
+            }
+            else
+            {
+                userProfile.AvatarDataUrl = req.AvatarDataUrl;
+            }
+            await db.SaveChangesAsync();
+            return Results.Ok();
         });
 
         userGroup.MapPut("/username", async (ClaimsPrincipal claimsPrincipal, UserManager<IdentityUser> userManager, UpdateUsernameRequest req) =>
@@ -226,5 +248,6 @@ public static class Endpoints
     }
 }
 
+public record UpdateAvatarRequest(string AvatarDataUrl);
 public record UpdateUsernameRequest(string NewUsername);
 public record Enable2FARequest(string Code);

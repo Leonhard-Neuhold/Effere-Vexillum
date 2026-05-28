@@ -48,7 +48,7 @@
             var response = await Http.PostAsJsonAsync("/api/auth/login?useCookies=true", loginModel);
             if (response.IsSuccessStatusCode)
             {
-                Nav.NavigateTo("/");
+                Nav.NavigateTo("/", forceLoad: true);
             }
             else
             {

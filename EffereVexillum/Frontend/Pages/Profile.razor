@@ -17,6 +17,33 @@
                 <MudTextField @bind-Value="profileModel.UserName" Label="Username" Required="true" RequiredError="Username is required!" />
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" OnClick="UpdateUsername" Class="mt-4">Update Username</MudButton>
             </MudForm>
+
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.h6" GutterBottom="true">Avatar</MudText>
+            <div class="d-flex align-center mb-4">
+                <MudAvatar Color="Color.Secondary" Size="Size.Large" Class="mr-4">
+                    @if (!string.IsNullOrEmpty(profileModel.AvatarDataUrl))
+                    {
+                        <img src="@GetValidAvatarUrl(profileModel.AvatarDataUrl)" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />
+                    }
+                    else
+                    {
+                        @(profileModel.UserName.Length > 0 ? profileModel.UserName[..1].ToUpper() : "U")
+                    }
+                </MudAvatar>
+                <div class="d-flex flex-column" style="width: 100%;">
+                    <MudTextField @bind-Value="profileModel.AvatarDataUrl" Label="Avatar Image URL (or base64)" FullWidth="true" Class="mb-2" />
+                    <InputFile id="avatarInput" OnChange="UploadAvatarFile" accept=".png, .jpg, .jpeg" hidden />
+                    <MudButton HtmlTag="label"
+                               Variant="Variant.Filled"
+                               Color="Color.Info"
+                               StartIcon="@Icons.Material.Filled.CloudUpload"
+                               for="avatarInput">
+                        Upload Avatar
+                    </MudButton>
+                </div>
+            </div>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="UpdateAvatar">Save Avatar</MudButton>
         </MudPaper>
 
         <MudPaper Class="pa-4 mt-4">
@@ -129,6 +156,14 @@
     string verificationCode = "";
     List<string> recoveryCodes = new();
 
+    string GetValidAvatarUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "";
+        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase) || url.StartsWith("data:image", StringComparison.OrdinalIgnoreCase))
+            return url;
+        return $"data:image/jpeg;base64,{url}";
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await LoadProfile();
@@ -159,6 +194,42 @@
             else
             {
                 Snackbar.Add("Failed to update username.", Severity.Error);
+            }
+        }
+    }
+
+    private async Task UpdateAvatar()
+    {
+        var response = await Http.PutAsJsonAsync("/api/user/avatar", new { AvatarDataUrl = profileModel.AvatarDataUrl });
+        if (response.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Avatar updated successfully! Refresh to view changes.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update avatar.", Severity.Error);
+        }
+    }
+
+    private async Task UploadAvatarFile(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            try
+            {
+                var maxAllowedSize = 512000; // 500 KB limit for avatar
+                using var stream = file.OpenReadStream(maxAllowedSize);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                
+                var base64 = Convert.ToBase64String(ms.ToArray());
+                profileModel.AvatarDataUrl = $"data:{file.ContentType};base64,{base64}";
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error uploading file: {ex.Message}", Severity.Error);
             }
         }
     }
@@ -242,6 +313,7 @@
     {
         public string Email { get; set; } = "";
         public string UserName { get; set; } = "";
+        public string AvatarDataUrl { get; set; } = "";
         public bool TwoFactorEnabled { get; set; }
         public List<GameStatDto> TopGames { get; set; } = new();
     }

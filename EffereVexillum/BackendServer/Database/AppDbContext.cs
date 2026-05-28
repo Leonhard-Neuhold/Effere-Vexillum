@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<Round> Rounds { get; set; } = null!;
     public DbSet<Stats> Stats { get; set; } = null!;
     public DbSet<Flag> Flags { get; set; } = null!;
+    public DbSet<UserProfile> UserProfiles { get; set; } = null!;
     
     protected override void OnModelCreating(ModelBuilder builder)
     {
