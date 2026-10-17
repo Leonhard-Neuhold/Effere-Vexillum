@@ -2,7 +2,7 @@
 
 Use the command
 ```
-kubectl create secret docker-registry regcred --docker-server=registry.neuhold-leonhard.work --docker-username=leonhard --docker-password=OgGwB6aj4Bxyd*Z#6He4
+kubectl create secret docker-registry regcred --docker-server=registry.neuhold-leonhard.work --docker-username=leonhard --docker-password=<password>
 ```
 to create the secret for logging into the docker registry.
 

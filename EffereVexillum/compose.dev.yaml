@@ -1,0 +1,25 @@
+# Hot reload overlay: docker compose -f compose.yaml -f compose.dev.yaml up --build
+services:
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: ./Dockerfile.dev
+    ports: !reset []
+    volumes:
+      - ./Frontend:/src
+      - /src/bin
+      - /src/obj
+    environment:
+      - DOTNET_USE_POLLING_FILE_WATCHER=true
+      - DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER=1
+
+  # Replaces the production nginx role: one origin for the dev server, /api and /lobby
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "9003:80"
+    volumes:
+      - ./Frontend/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backendserver

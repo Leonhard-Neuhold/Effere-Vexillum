@@ -1,0 +1,8 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+WORKDIR /src
+
+COPY ["Frontend.csproj", "./"]
+RUN dotnet restore "Frontend.csproj"
+
+EXPOSE 5232
+ENTRYPOINT ["dotnet", "watch", "run", "--non-interactive", "--no-launch-profile", "--urls", "http://0.0.0.0:5232"]
