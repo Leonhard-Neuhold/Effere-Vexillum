@@ -198,6 +198,11 @@ public static class LobbyEndpoints
             if (lobby.GameAdminId != userId) return Results.Forbid();
             if (lobby.GameStarted) return Results.BadRequest("Game has already started.");
 
+            if (lobby.GameMode == "Chain")
+            {
+                return await ChainLogic.StartGame(db, sp, lobby);
+            }
+
             lobby.GameStarted = true;
 
             var game = new Game

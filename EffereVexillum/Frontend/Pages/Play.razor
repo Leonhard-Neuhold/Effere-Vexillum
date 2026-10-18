@@ -45,6 +45,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var lobby = await Http.GetFromJsonAsync<LobbyModeDto>($"/api/lobbies/{LobbyId}");
+        if (lobby?.GameMode == "Chain")
+        {
+            Nav.NavigateTo($"/play-chain/{LobbyId}", replace: true);
+            return;
+        }
+
         await LoadGameState();
 
         _hubConnection = new HubConnectionBuilder()
@@ -178,6 +185,11 @@ else
         public string State { get; set; } = "";
         public string? FlagToDraw { get; set; }
         public string? ImageToGuess { get; set; }
+    }
+
+    public class LobbyModeDto
+    {
+        public string GameMode { get; set; } = "";
     }
 
     public class UploadResponse 

@@ -36,9 +36,34 @@
                 </RowTemplate>
             </MudTable>
         }
-        else
+        else if (!_chains.Any())
         {
             <MudAlert Severity="Severity.Info">No results available for this game.</MudAlert>
+        }
+
+        @foreach (var chain in _chains)
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="2">
+                <MudText Typo="Typo.h6" GutterBottom="true">@chain.Owner's chain: started with <b>@chain.OriginalFlag</b></MudText>
+                @foreach (var step in chain.Steps)
+                {
+                    <div class="mb-3">
+                        <MudText Typo="Typo.caption">@step.Player @(step.Type == "draw" ? "drew" : "guessed")</MudText>
+                        @if (string.IsNullOrEmpty(step.Content))
+                        {
+                            <MudText Typo="Typo.body2"><i>(nothing submitted)</i></MudText>
+                        }
+                        else if (step.Type == "draw")
+                        {
+                            <img src="/api/drawings/@step.Content" alt="Drawing by @step.Player" width="400" height="300" style="border: 1px solid black; display: block;" />
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.h6">@step.Content</MudText>
+                        }
+                    </div>
+                }
+            </MudPaper>
         }
 
         <div Class="d-flex gap-4 mt-6">
@@ -55,12 +80,14 @@
     private bool _isLoading = true;
     private string? _errorMessage;
     private GameResultsDto? _results;
+    private List<ChainDto> _chains = new();
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _results = await Http.GetFromJsonAsync<GameResultsDto>($"/api/games/{GameId}/results");
+            _chains = await Http.GetFromJsonAsync<List<ChainDto>>($"/api/games/{GameId}/chains") ?? new();
             if (_results == null)
             {
                 _errorMessage = "Failed to load results.";
@@ -94,6 +121,20 @@
         public Guid GameId { get; set; }
         public Guid LobbyId { get; set; }
         public List<PlayerScoreDto> Leaderboard { get; set; } = new();
+    }
+
+    public class ChainDto
+    {
+        public string Owner { get; set; } = "";
+        public string OriginalFlag { get; set; } = "";
+        public List<ChainStepDto> Steps { get; set; } = new();
+    }
+
+    public class ChainStepDto
+    {
+        public string Player { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string? Content { get; set; }
     }
 
     public class PlayerScoreDto

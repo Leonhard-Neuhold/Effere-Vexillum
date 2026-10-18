@@ -1,10 +1,11 @@
 import requests
 import os
 import json
+import sys
 API_URL = "https://vexillology.fandom.com/api.php"
-out_dir = "flags"
-if not os.path.exists(out_dir):
-    os.makedirs(out_dir)
+# Usage: download_flags.py [out_dir] [--force]  (default: Flags next to this script)
+out_dir = next((a for a in sys.argv[1:] if not a.startswith("--")), None) or os.path.join(os.path.dirname(os.path.abspath(__file__)), "Flags")
+os.makedirs(out_dir, exist_ok=True)
 def get_images():
     params = {
         "action": "query",
@@ -27,6 +28,10 @@ def get_images():
         else:
             break
 def main():
+    # Already populated (e.g. on a previous start): nothing to do. Pass --force to top up anyway.
+    if "--force" not in sys.argv and any(os.scandir(out_dir)):
+        print(f"{out_dir} already populated, skipping download.")
+        return
     print("Fetching images from Vexillology Wiki...")
     count = 0
     for name, url in get_images():

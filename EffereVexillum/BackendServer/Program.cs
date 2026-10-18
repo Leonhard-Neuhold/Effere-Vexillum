@@ -1,4 +1,4 @@
-using BackendServer.Api;
+﻿using BackendServer.Api;
 using BackendServer.Database;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -79,6 +79,26 @@ using (var scope = app.Services.CreateScope())
     try
     {
         db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""Chains"" (
+                ""Id"" uuid NOT NULL,
+                ""GameId"" uuid NOT NULL,
+                ""ChainIndex"" integer NOT NULL,
+                ""OwnerPlayerId"" text NOT NULL,
+                ""OriginalFlag"" text NOT NULL,
+                ""Steps"" jsonb NOT NULL,
+                CONSTRAINT ""PK_Chains"" PRIMARY KEY (""Id""),
+                CONSTRAINT ""FK_Chains_Games_GameId"" FOREIGN KEY (""GameId"") REFERENCES ""Games"" (""Id"") ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS ""IX_Chains_GameId"" ON ""Chains"" (""GameId"");");
+    }
+    catch
+    {
+        // ignored
+    }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"
             CREATE TABLE IF NOT EXISTS ""UserProfiles"" (
                 ""UserId"" text NOT NULL,
                 ""AvatarDataUrl"" text NOT NULL,
@@ -113,6 +133,38 @@ using (var scope = app.Services.CreateScope())
 
         var bucketName = "pictures";
         var found = await minioClient.BucketExistsAsync(new Minio.DataModel.Args.BucketExistsArgs().WithBucket(bucketName));
+        if (!found)
+        {
+            await minioClient.MakeBucketAsync(new Minio.DataModel.Args.MakeBucketArgs().WithBucket(bucketName));
+            found = true;
+        }
+
+        // Upload flag images from the mounted Flags directory that are not in the bucket yet
+        var flagsDir = builder.Configuration["Flags:Directory"] ?? "/flags";
+        if (Directory.Exists(flagsDir))
+        {
+            var existingKeys = new HashSet<string>();
+            var existingArgs = new Minio.DataModel.Args.ListObjectsArgs().WithBucket(bucketName).WithRecursive(true);
+            await foreach (var item in minioClient.ListObjectsEnumAsync(existingArgs).ConfigureAwait(false))
+                existingKeys.Add(item.Key);
+
+            var contentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [".png"] = "image/png", [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg",
+                [".gif"] = "image/gif", [".svg"] = "image/svg+xml"
+            };
+            var uploaded = 0;
+            foreach (var file in Directory.EnumerateFiles(flagsDir))
+            {
+                var key = Path.GetFileName(file);
+                if (existingKeys.Contains(key) || !contentTypes.TryGetValue(Path.GetExtension(key), out var contentType)) continue;
+                await minioClient.PutObjectAsync(new Minio.DataModel.Args.PutObjectArgs()
+                    .WithBucket(bucketName).WithObject(key).WithFileName(file).WithContentType(contentType));
+                uploaded++;
+            }
+            Console.WriteLine($"Flag upload: {uploaded} new image(s) uploaded from {flagsDir}.");
+        }
+
         if (found)
         {
             var listArgs = new Minio.DataModel.Args.ListObjectsArgs().WithBucket(bucketName).WithRecursive(true);
@@ -220,6 +272,7 @@ app.UseAuthorization();
 app.MapGet("/", () => "Hello World!");
 app.AddEndpoints();
 app.AddLobbyEndpoints();
+app.AddChainEndpoints();
 
 app.Run("http://0.0.0.0:8080");
 

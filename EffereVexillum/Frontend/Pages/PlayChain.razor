@@ -1,0 +1,197 @@
+@page "/play-chain/{LobbyId:guid}"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IJSRuntime JsRuntime
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+
+<MudText Typo="Typo.h4" GutterBottom="true">Stille Post</MudText>
+
+@if (_task == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudText Typo="Typo.subtitle1" GutterBottom="true">Step @_task.StepNumber of @_task.TotalSteps</MudText>
+
+    @if (_task.Submitted)
+    {
+        <MudText Typo="Typo.h5">Waiting for the other players...</MudText>
+    }
+    else if (_task.Type == "draw")
+    {
+        @if (string.IsNullOrEmpty(_task.FlagToDraw))
+        {
+            <MudText Typo="Typo.h5">The previous player submitted nothing. Draw any flag you like!</MudText>
+        }
+        else
+        {
+            <MudText Typo="Typo.h5">Draw the flag: @_task.FlagToDraw</MudText>
+        }
+        <canvas id="drawingCanvas" width="400" height="300" style="cursor: crosshair; border: 1px solid black; display: block;"></canvas>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitDrawing" Class="mt-4">Submit Drawing</MudButton>
+    }
+    else
+    {
+        <MudText Typo="Typo.h5">Which flag is this?</MudText>
+        @if (!string.IsNullOrEmpty(_task.ImageToGuess))
+        {
+            <img src="/api/drawings/@_task.ImageToGuess" alt="Flag to guess" width="400" height="300" style="border: 1px solid black;" />
+        }
+        else
+        {
+            <MudText Typo="Typo.body1"><i>The previous player submitted no drawing. Guess anything!</i></MudText>
+        }
+        <MudTextField @bind-Value="_guess" Label="Your Guess" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitGuess" Class="mt-4">Submit Guess</MudButton>
+    }
+}
+
+@code {
+    [Parameter] public Guid LobbyId { get; set; }
+    private ChainTaskDto? _task;
+    private string _guess = "";
+    private bool _canvasInitialized = false;
+    private HubConnection? _hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTask();
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/lobby"))
+            .Build();
+
+        _hubConnection.On<int>("RoundStarted", async (_) =>
+        {
+            _canvasInitialized = false;
+            _guess = "";
+            await LoadTask();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<Guid>("GameFinished", (gameId) =>
+        {
+            Nav.NavigateTo($"/results/{gameId}");
+        });
+
+        await _hubConnection.StartAsync();
+        await _hubConnection.SendAsync("JoinLobbyGroup", LobbyId.ToString());
+    }
+
+    private async Task LoadTask()
+    {
+        var game = await Http.GetFromJsonAsync<GameStateDto>($"/api/lobbies/{LobbyId}/chain-game");
+        if (game != null)
+        {
+            _task = await Http.GetFromJsonAsync<ChainTaskDto>($"/api/games/{game.GameId}/chain-task");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JsRuntime.InvokeVoidAsync("eval", @"
+                window.setupCanvas = () => {
+                    const canvas = document.getElementById('drawingCanvas');
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    let isDrawing = false;
+                    canvas.onmousedown = (e) => { isDrawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); };
+                    canvas.onmousemove = (e) => { if (isDrawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } };
+                    canvas.onmouseup = () => { isDrawing = false; };
+                    canvas.onmouseout = () => { isDrawing = false; };
+                };
+                window.getCanvasData = () => {
+                    return document.getElementById('drawingCanvas').toDataURL('image/png');
+                };
+            ");
+        }
+
+        if (_task is { Type: "draw", Submitted: false } && !_canvasInitialized)
+        {
+            try
+            {
+                await JsRuntime.InvokeVoidAsync("setupCanvas");
+                _canvasInitialized = true;
+            }
+            catch { }
+        }
+    }
+
+    private async Task SubmitDrawing()
+    {
+        if (_task == null) return;
+
+        var dataUrl = await JsRuntime.InvokeAsync<string>("getCanvasData");
+        var bytes = Convert.FromBase64String(dataUrl.Split(',')[1]);
+        var content = new ByteArrayContent(bytes);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+
+        using var contentMulti = new MultipartFormDataContent();
+        contentMulti.Add(new StringContent(LobbyId.ToString()), "lobbyId");
+        contentMulti.Add(new StringContent(_task.GameId.ToString()), "gameId");
+        contentMulti.Add(new StringContent(_task.StepNumber.ToString()), "roundNumber");
+        contentMulti.Add(content, "file", "drawing.png");
+
+        var response = await Http.PostAsync("/api/upload-drawing", contentMulti);
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<UploadResponse>();
+            if (result != null && !string.IsNullOrEmpty(result.Path))
+            {
+                await Submit(result.Path);
+            }
+        }
+    }
+
+    private async Task SubmitGuess()
+    {
+        if (string.IsNullOrWhiteSpace(_guess)) return;
+        await Submit(_guess);
+        _guess = "";
+    }
+
+    private async Task Submit(string content)
+    {
+        if (_task == null) return;
+        var response = await Http.PostAsJsonAsync("/api/chain/submit", new { GameId = _task.GameId, StepNumber = _task.StepNumber, Content = content });
+        if (response.IsSuccessStatusCode)
+        {
+            _task.Submitted = true;
+        }
+    }
+
+    public class GameStateDto
+    {
+        public Guid GameId { get; set; }
+    }
+
+    public class ChainTaskDto
+    {
+        public Guid GameId { get; set; }
+        public int StepNumber { get; set; }
+        public int TotalSteps { get; set; }
+        public string Type { get; set; } = "";
+        public string? FlagToDraw { get; set; }
+        public string? ImageToGuess { get; set; }
+        public bool Submitted { get; set; }
+    }
+
+    public class UploadResponse
+    {
+        public string? Path { get; set; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+}

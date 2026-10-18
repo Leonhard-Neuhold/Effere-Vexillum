@@ -11,8 +11,16 @@
         <MudSelect @bind-Value="request.GameMode" Label="Game Mode" Required="true">
             <MudSelectItem Value="@("Standard")">Standard</MudSelectItem>
             <MudSelectItem Value="@("Blitz")">Blitz</MudSelectItem>
+            <MudSelectItem Value="@("Chain")">Stille Post (Chain)</MudSelectItem>
         </MudSelect>
-        <MudNumericField @bind-Value="request.NumberOfRounds" Label="Rounds" Min="1" Max="20" Required="true" />
+        @if (request.GameMode == "Chain")
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-2">Every chain passes through every player: draw, guess, draw, guess... The number of steps equals the number of players.</MudAlert>
+        }
+        else
+        {
+            <MudNumericField @bind-Value="request.NumberOfRounds" Label="Rounds" Min="1" Max="20" Required="true" />
+        }
         <MudTextField @bind-Value="request.CustomFilter" Label="Filter Category (Optional)" />
         <MudNumericField @bind-Value="request.TimerForDrawing" Label="Time for Drawing (s)" Min="10" Max="300" Required="true" />
         <MudNumericField @bind-Value="request.TimerForGuessing" Label="Time for Guessing (s)" Min="5" Max="120" Required="true" />

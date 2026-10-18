@@ -8,6 +8,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<Lobby> Lobbies { get; set; } = null!;
     public DbSet<Game> Games { get; set; } = null!;
     public DbSet<Round> Rounds { get; set; } = null!;
+    public DbSet<Chain> Chains { get; set; } = null!;
     public DbSet<Stats> Stats { get; set; } = null!;
     public DbSet<Flag> Flags { get; set; } = null!;
     public DbSet<UserProfile> UserProfiles { get; set; } = null!;
@@ -37,6 +38,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             .Property(r => r.PlayerToDrawingMapping)
             .HasColumnType("jsonb");
             
+        builder.Entity<Chain>()
+            .Property(c => c.Steps)
+            .HasColumnType("jsonb");
+
         builder.Entity<Stats>()
             .Property(s => s.CumulatedPoints)
             .HasColumnType("jsonb");

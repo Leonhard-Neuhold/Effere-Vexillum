@@ -1,4 +1,14 @@
 ﻿services:
+  # Downloads flag images into ./Flags if the folder is empty (no-op otherwise)
+  flags-init:
+    image: python:3-alpine
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    command: sh -c "pip install --quiet --no-cache-dir --target /tmp/pylib requests && PYTHONPATH=/tmp/pylib python download_flags.py /flags"
+    volumes:
+      - ./download_flags.py:/app/download_flags.py:ro
+      - ./Flags:/flags
+
   backendserver:
     image: backendserver
     build:
@@ -11,7 +21,11 @@
       - Minio__AccessKey=minioadmin
       - Minio__SecretKey=minioadmin
       - Minio__Secure=false
+    volumes:
+      - ./Flags:/flags:ro
     depends_on:
+      flags-init:
+        condition: service_completed_successfully
       minio:
         condition: service_started
       postgres:
