@@ -1,7 +1,6 @@
 @page "/play/{LobbyId:guid}"
 @inject HttpClient Http
 @inject NavigationManager Nav
-@inject IJSRuntime JsRuntime
 @using Microsoft.AspNetCore.SignalR.Client
 @implements IAsyncDisposable
 
@@ -12,7 +11,7 @@
     @if (!_hasSubmittedDrawing)
     {
         <MudText Typo="Typo.h5">Draw the flag: @_flagToDraw!</MudText>
-        <canvas id="drawingCanvas" width="400" height="300" style="cursor: crosshair; border: 1px solid black; display: block;" @onmousedown="BeginDraw" @onmousemove="Draw" @onmouseup="EndDraw"></canvas>
+        <DrawingCanvas @ref="_canvas" @key="_roundNumber" />
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitDrawing" Class="mt-4">Submit Drawing</MudButton>
     }
     else
@@ -25,7 +24,7 @@ else
     <MudText Typo="Typo.h5">Guess the flag!</MudText>
     @if (!string.IsNullOrEmpty(_currentImageObject))
     {
-        <img src="/api/drawings/@_currentImageObject" alt="Flag to guess" width="400" height="300" style="border: 1px solid black;" />
+        <img src="/api/drawings/@_currentImageObject" alt="Flag to guess" style="max-width: 100%; max-height: 60vh; border: 1px solid black; display: block;" />
     }
     <MudTextField @bind-Value="_guess" Label="Your Guess" />
     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitGuess" Class="mt-4">Submit Guess</MudButton>
@@ -35,7 +34,7 @@ else
     [Parameter] public Guid LobbyId { get; set; }
     private bool _isDrawingPhase = true;
     private bool _hasSubmittedDrawing = false;
-    private bool _canvasInitialized = false;
+    private DrawingCanvas? _canvas;
     private string _guess = "";
     private string _currentImageObject = "";
     private string _flagToDraw = "";
@@ -63,7 +62,6 @@ else
             await LoadGameState();
             _isDrawingPhase = true;
             _hasSubmittedDrawing = false;
-            _canvasInitialized = false;
             await InvokeAsync(StateHasChanged);
         });
 
@@ -102,49 +100,10 @@ else
         }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await JsRuntime.InvokeVoidAsync("eval", @"
-                window.setupCanvas = () => {
-                    const canvas = document.getElementById('drawingCanvas');
-                    if (!canvas) return;
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    let isDrawing = false;
-                    canvas.onmousedown = (e) => { isDrawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); };
-                    canvas.onmousemove = (e) => { if (isDrawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } };
-                    canvas.onmouseup = () => { isDrawing = false; };
-                    canvas.onmouseout = () => { isDrawing = false; };
-                };
-                window.getCanvasData = () => {
-                    return document.getElementById('drawingCanvas').toDataURL('image/png');
-                };
-            ");
-        }
-
-        if (_isDrawingPhase && !_hasSubmittedDrawing && !_canvasInitialized)
-        {
-            try
-            {
-                await JsRuntime.InvokeVoidAsync("setupCanvas");
-                _canvasInitialized = true;
-            }
-            catch { }
-        }
-    }
-
-    private void BeginDraw() { }
-    private void Draw() { }
-    private void EndDraw() { }
-
     private async Task SubmitDrawing()
     {
-        var dataUrl = await JsRuntime.InvokeAsync<string>("getCanvasData");
-        var base64 = dataUrl.Split(',')[1];
-        var bytes = Convert.FromBase64String(base64);
+        if (_canvas is null) return;
+        var bytes = Convert.FromBase64String(await _canvas.GetPngBase64Async());
         var content = new ByteArrayContent(bytes);
         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
 

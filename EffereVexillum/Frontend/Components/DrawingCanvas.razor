@@ -1,0 +1,419 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<MudPaper Elevation="2" Class="de pa-2">
+    <div class="de-row">
+        @foreach (var group in ToolGroups)
+        {
+            <div class="de-group">
+                @foreach (var t in group)
+                {
+                    var tool = t;
+                    <MudIconButton Icon="@tool.Icon" Size="Size.Small"
+                                   Color="@(_tool == tool.Id ? Color.Primary : Color.Default)"
+                                   Variant="@(_tool == tool.Id ? Variant.Filled : Variant.Text)"
+                                   OnClick="@(() => SelectTool(tool.Id))"
+                                   title="@($"{tool.Label} ({tool.Key})")" />
+                }
+            </div>
+        }
+        <div class="de-group">
+            <MudIconButton Icon="@Icons.Material.Filled.Undo" Size="Size.Small" Disabled="@(!_canUndo)" OnClick="@(() => Call("undo"))" title="Undo (Ctrl+Z)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Redo" Size="Size.Small" Disabled="@(!_canRedo)" OnClick="@(() => Call("redo"))" title="Redo (Ctrl+Y)" />
+            <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep" Size="Size.Small" OnClick="@(() => Call("clear"))" title="Clear everything" />
+        </div>
+        <div class="de-group">
+            <MudIconButton Icon="@Icons.Material.Filled.ZoomOut" Size="Size.Small" Disabled="@(_zoom <= 100)" OnClick="@(() => Call("zoomOut"))" title="Zoom out (Ctrl+wheel / pinch)" />
+            <MudText Typo="Typo.caption" Class="de-zoom">@_zoom%</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.ZoomIn" Size="Size.Small" OnClick="@(() => Call("zoomIn"))" title="Zoom in" />
+            <MudIconButton Icon="@Icons.Material.Filled.FitScreen" Size="Size.Small" Disabled="@(_zoom <= 100)" OnClick="@(() => Call("zoomFit"))" title="Fit to screen" />
+        </div>
+    </div>
+
+    <div class="de-row de-colors">
+        <div class="de-swatches">
+            @foreach (var (hex, name) in Palette)
+            {
+                var c = hex;
+                <button type="button" class="de-swatch @(SameColor(c) ? "de-active" : "")" style="background:@c" title="@name"
+                        @onclick="@(() => SetColor(c))"></button>
+            }
+        </div>
+        <div class="de-swatches">
+            @foreach (var c in _recent)
+            {
+                var col = c;
+                <button type="button" class="de-swatch @(SameColor(col) ? "de-active" : "")" style="background:@col" title="Recent @col"
+                        @onclick="@(() => SetColor(col))"></button>
+            }
+            <label class="de-custom" title="Custom colour">
+                <input type="color" value="@_color" @onchange="OnCustomColor" />
+                <MudIcon Icon="@Icons.Material.Filled.Palette" Size="Size.Small" />
+            </label>
+        </div>
+    </div>
+
+    <div class="de-row de-options">
+        <div class="de-opt de-opt-wide">
+            <MudText Typo="Typo.caption">@(IsBrushTool ? "Brush" : "Line / outline") size: @_width px</MudText>
+            <MudSlider T="int" Value="_width" ValueChanged="SetWidth" Min="1" Max="80" Size="Size.Small" />
+        </div>
+        @if (ShowFillToggle)
+        {
+            <div class="de-opt">
+                <MudSwitch T="bool" Value="_filled" ValueChanged="SetFilled" Label="Filled" Color="Color.Primary" Size="Size.Small" />
+            </div>
+        }
+        @if (ShowPoints)
+        {
+            <div class="de-opt de-opt-wide">
+                <MudText Typo="Typo.caption">@(ActiveShape == "sun" ? "Rays" : "Points"): @_points</MudText>
+                <MudSlider T="int" Value="_points" ValueChanged="SetPoints" Min="3" Max="32" Size="Size.Small" />
+            </div>
+        }
+        @if (ShowThickness)
+        {
+            <div class="de-opt de-opt-wide">
+                <MudText Typo="Typo.caption">Arm thickness: @_thickness%</MudText>
+                <MudSlider T="int" Value="_thickness" ValueChanged="SetThickness" Min="5" Max="60" Size="Size.Small" />
+            </div>
+        }
+        @if (_tool == "fill")
+        {
+            <div class="de-opt de-opt-wide">
+                <MudText Typo="Typo.caption">Fill tolerance: @_tolerance</MudText>
+                <MudSlider T="int" Value="_tolerance" ValueChanged="SetTolerance" Min="0" Max="200" Size="Size.Small" />
+            </div>
+        }
+        @if (_polygonActive)
+        {
+            <div class="de-opt">
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" OnClick="@(() => Call("finishPolygon"))">Finish shape</MudButton>
+            </div>
+        }
+    </div>
+
+    <div class="de-row">
+        <div class="de-group">
+            <MudToggleIconButton Toggled="_grid" ToggledChanged="SetGrid" Icon="@Icons.Material.Filled.GridOff" ToggledIcon="@Icons.Material.Filled.GridOn"
+                                 Size="Size.Small" Color="Color.Default" ToggledColor="Color.Primary" title="Show grid" />
+            <MudToggleIconButton Toggled="_snap" ToggledChanged="SetSnap" Icon="@Icons.Material.Filled.CenterFocusWeak" ToggledIcon="@Icons.Material.Filled.CenterFocusStrong"
+                                 Size="Size.Small" Color="Color.Default" ToggledColor="Color.Primary" title="Snap to grid" />
+            <MudToggleIconButton Toggled="_constrain" ToggledChanged="SetConstrain" Icon="@Icons.Material.Filled.LockOpen" ToggledIcon="@Icons.Material.Filled.Lock"
+                                 Size="Size.Small" Color="Color.Default" ToggledColor="Color.Primary"
+                                 title="Constrain: regular shapes, 15° lines, locked aspect when resizing, 15° rotation" />
+            <MudText Typo="Typo.caption" Class="de-zoom">Grid</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Disabled="@(_gridDiv <= 2)" OnClick="@(() => SetGridDiv(_gridDiv - 1))" title="Fewer grid divisions" />
+            <MudText Typo="Typo.caption" Class="de-zoom">@_gridDiv × @_gridDiv</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Disabled="@(_gridDiv >= 32)" OnClick="@(() => SetGridDiv(_gridDiv + 1))" title="More grid divisions" />
+        </div>
+        <div class="de-group">
+            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" Disabled="@(!HasSelection)" OnClick="@(() => Call("duplicate"))" title="Duplicate (Ctrl+D)" />
+            <MudIconButton Icon="@Icons.Material.Filled.FlipToFront" Size="Size.Small" Disabled="@(!HasSelection)" OnClick="@(() => Call("toFront"))" title="Bring to front" />
+            <MudIconButton Icon="@Icons.Material.Filled.FlipToBack" Size="Size.Small" Disabled="@(!HasSelection)" OnClick="@(() => Call("toBack"))" title="Send to back" />
+            <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small" Disabled="@(!HasSelection)" OnClick="@(() => Call("flipH"))" title="Flip horizontally" />
+            <MudIconButton Icon="@Icons.Material.Filled.SwapVert" Size="Size.Small" Disabled="@(!HasSelection)" OnClick="@(() => Call("flipV"))" title="Flip vertically" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Disabled="@(!HasSelection)" OnClick="@(() => Call("deleteSelected"))" title="Delete (Del)" />
+        </div>
+    </div>
+
+    <div class="de-row de-ratio">
+        <MudText Typo="Typo.caption" Class="de-label">Flag ratio</MudText>
+        <div class="de-group de-wrapgroup">
+            @foreach (var p in RatioPresets)
+            {
+                var preset = p;
+                <MudButton Size="Size.Small" Variant="@(!_customRatio && IsRatio(preset.W, preset.H) ? Variant.Filled : Variant.Outlined)"
+                           Color="@(!_customRatio && IsRatio(preset.W, preset.H) ? Color.Primary : Color.Default)"
+                           OnClick="@(() => ApplyPreset(preset))" title="@preset.Hint">@preset.Label</MudButton>
+            }
+            <MudButton Size="Size.Small" Variant="@(_customRatio ? Variant.Filled : Variant.Outlined)" Color="@(_customRatio ? Color.Primary : Color.Default)"
+                       OnClick="ToggleCustomRatio" title="Enter any width : height">Custom</MudButton>
+            <MudIconButton Icon="@Icons.Material.Filled.ScreenRotation" Size="Size.Small" OnClick="SwapRatio" title="Swap width and height (landscape / portrait)" />
+        </div>
+        @if (_customRatio)
+        {
+            <div class="de-group">
+                <MudNumericField T="double" Value="_ratioW" ValueChanged="SetRatioW" Min="0.1" Max="100" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense" Class="de-num" HideSpinButtons="true" Label="Width" />
+                <MudText Typo="Typo.h6">:</MudText>
+                <MudNumericField T="double" Value="_ratioH" ValueChanged="SetRatioH" Min="0.1" Max="100" Step="0.5" Variant="Variant.Outlined" Margin="Margin.Dense" Class="de-num" HideSpinButtons="true" Label="Height" />
+            </div>
+        }
+        <MudSwitch T="bool" Value="_stretch" ValueChanged="SetStretch" Label="Stretch drawing" Color="Color.Primary" Size="Size.Small" />
+    </div>
+
+    <MudText Typo="Typo.caption" Class="de-hint">@Hint</MudText>
+    <div @ref="_host" class="de-host"></div>
+</MudPaper>
+
+@code {
+    private record ToolDef(string Id, string Icon, string Label, string Key);
+    private record RatioPreset(string Label, double W, double H, string Hint);
+
+    private const string EraserIcon = "<path d=\"M16.2 3.6l4.2 4.2a2 2 0 0 1 0 2.8L11 20H6l-2.6-2.6a2 2 0 0 1 0-2.8L13.4 3.6a2 2 0 0 1 2.8 0zM7 18h3l-5-5z\"/>";
+    private const string CrescentIcon = "<path d=\"M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z\"/>";
+    private const string HoistIcon = "<path d=\"M3 4l18 8-18 8z\"/>";
+    private const string CrossIcon = "<path d=\"M9 3h6v6h6v6h-6v6H9v-6H3V9h6z\"/>";
+
+    private static readonly ToolDef[][] ToolGroups =
+    [
+        [
+            new("select", Icons.Material.Filled.NearMe, "Select, move, resize, rotate", "V"),
+            new("pan", Icons.Material.Filled.PanTool, "Pan (or hold Space)", "H")
+        ],
+        [
+            new("pen", Icons.Material.Filled.Brush, "Pen", "B"),
+            new("eraser", EraserIcon, "Eraser", "E"),
+            new("fill", Icons.Material.Filled.FormatColorFill, "Fill bucket", "G"),
+            new("pick", Icons.Material.Filled.Colorize, "Pick colour", "I")
+        ],
+        [
+            new("line", Icons.Material.Filled.HorizontalRule, "Straight line", "L"),
+            new("rect", Icons.Material.Filled.CheckBoxOutlineBlank, "Rectangle", "R"),
+            new("ellipse", Icons.Material.Filled.RadioButtonUnchecked, "Ellipse / circle", "O"),
+            new("triangle", Icons.Material.Filled.ChangeHistory, "Triangle", "T"),
+            new("hoist", HoistIcon, "Hoist triangle (Czech style)", "J"),
+            new("polygon", Icons.Material.Filled.Timeline, "Polygon (click points, Enter to close)", "Y")
+        ],
+        [
+            new("star", Icons.Material.Filled.StarBorder, "Star", "S"),
+            new("crescent", CrescentIcon, "Crescent", "C"),
+            new("cross", CrossIcon, "Cross", "X"),
+            new("sun", Icons.Material.Filled.WbSunny, "Sun", "U")
+        ]
+    ];
+
+    private static readonly (string Hex, string Name)[] Palette =
+    [
+        ("#ffffff", "White"), ("#000000", "Black"), ("#808080", "Grey"), ("#c8c8c8", "Light grey"),
+        ("#ce1126", "Red"), ("#8b0000", "Dark red"), ("#ff8200", "Orange"), ("#fcd116", "Yellow"),
+        ("#c8a415", "Gold"), ("#009a44", "Green"), ("#006b3f", "Dark green"), ("#78be20", "Light green"),
+        ("#00a3a1", "Turquoise"), ("#74acdf", "Light blue"), ("#00a1de", "Sky blue"), ("#0038a8", "Blue"),
+        ("#002868", "Navy"), ("#6a1b9a", "Purple"), ("#f4a6c0", "Pink"), ("#6f4e37", "Brown")
+    ];
+
+    private static readonly RatioPreset[] RatioPresets =
+    [
+        new("1:1", 1, 1, "Switzerland, Vatican City"),
+        new("5:4", 5, 4, ""),
+        new("4:3", 4, 3, ""),
+        new("7:5", 7, 5, "Alaska"),
+        new("3:2", 3, 2, "France, Italy, Netherlands"),
+        new("5:3", 5, 3, "Germany, Belgium (13:15)"),
+        new("2:1", 2, 1, "United Kingdom, Canada, Jamaica")
+    ];
+
+    private static readonly Dictionary<string, string> Hints = new()
+    {
+        ["select"] = "Click a shape to select it. Drag to move, drag the square handles to resize, the round handle to rotate. Arrow keys nudge.",
+        ["pan"] = "Drag to move around while zoomed in.",
+        ["pen"] = "Draw freehand.",
+        ["eraser"] = "Paint over mistakes with white.",
+        ["fill"] = "Click an enclosed area to flood it with the colour. Raise the tolerance if a thin edge is left behind.",
+        ["pick"] = "Click anywhere on the drawing to pick up its colour.",
+        ["line"] = "Drag to draw a straight line. Enable the lock for 15° angles.",
+        ["polygon"] = "Click to place corners. Click the first corner, double-click, or press Enter to close the shape; Backspace removes the last corner.",
+    };
+
+    private ElementReference _host;
+    private IJSObjectReference? _module;
+    private int _editorId;
+    private bool _ready;
+    private DotNetObjectReference<DrawingCanvas>? _self;
+
+    private string _tool = "pen";
+    private string _prevTool = "pen";
+    private string _color = "#ce1126";
+    private readonly List<string> _recent = [];
+    private int _width = 8;
+    private bool _filled = true;
+    private int _points = 5;
+    private int _thickness = 33;
+    private int _tolerance = 60;
+    private bool _grid;
+    private bool _snap;
+    private bool _constrain;
+    private int _gridDiv = 6;
+    private double _ratioW = 3;
+    private double _ratioH = 2;
+    private bool _customRatio;
+    private bool _stretch = true;
+
+    private bool _canUndo;
+    private bool _canRedo;
+    private int _zoom = 100;
+    private string _selType = "";
+    private bool _polygonActive;
+
+    private bool HasSelection => _selType != "";
+    private bool IsBrushTool => _tool is "pen" or "eraser";
+    private string ActiveShape => HasSelection ? _selType : _tool;
+    private bool IsShape(string t) => t is "rect" or "ellipse" or "triangle" or "hoist" or "star" or "crescent" or "cross" or "sun" or "polygon";
+    private bool ShowFillToggle => IsShape(ActiveShape);
+    private bool ShowPoints => ActiveShape is "star" or "sun";
+    private bool ShowThickness => ActiveShape == "cross";
+    private string Hint => Hints.TryGetValue(_tool, out var h) ? h : "Drag on the canvas to draw the shape. Use the grid and snapping for exact proportions.";
+
+    private bool SameColor(string c) => string.Equals(c, _color, StringComparison.OrdinalIgnoreCase);
+    private bool IsRatio(double w, double h) => Math.Abs(_ratioW / _ratioH - w / h) < 1e-6;
+
+    public class EditorState
+    {
+        public bool CanUndo { get; set; }
+        public bool CanRedo { get; set; }
+        public string SelType { get; set; } = "";
+        public bool PolygonActive { get; set; }
+        public int Zoom { get; set; } = 100;
+        public double RatioW { get; set; }
+        public double RatioH { get; set; }
+        public SelectionProps? Selection { get; set; }
+    }
+
+    public class SelectionProps
+    {
+        public string? Color { get; set; }
+        public int Width { get; set; }
+        public bool Filled { get; set; }
+        public int? N { get; set; }
+        public int? T { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _self = DotNetObjectReference.Create(this);
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/drawing.js");
+        _editorId = await _module.InvokeAsync<int>("create", _host, _self);
+        _ready = true;
+        await Call("setTool", _tool);
+        foreach (var (name, value) in new (string, object)[]
+                 {
+                     ("color", _color), ("width", _width), ("filled", _filled), ("n", _points), ("t", _thickness),
+                     ("tol", _tolerance), ("grid", _grid), ("div", _gridDiv), ("snap", _snap), ("constrain", _constrain)
+                 })
+        {
+            await Call("setOption", name, value);
+        }
+    }
+
+    /// <summary>The current drawing as a PNG, base64-encoded.</summary>
+    public async Task<string> GetPngBase64Async()
+    {
+        if (!_ready) throw new InvalidOperationException("The drawing canvas is not ready yet.");
+        return await _module!.InvokeAsync<string>("call", _editorId, "toPngBase64");
+    }
+
+    [JSInvokable]
+    public async Task OnEditorState(EditorState s)
+    {
+        _canUndo = s.CanUndo;
+        _canRedo = s.CanRedo;
+        _selType = s.SelType;
+        _polygonActive = s.PolygonActive;
+        _zoom = s.Zoom;
+        _ratioW = s.RatioW;
+        _ratioH = s.RatioH;
+        if (s.Selection is { } sel)
+        {
+            if (sel.Color is not null) _color = sel.Color;
+            _width = sel.Width;
+            _filled = sel.Filled;
+            if (sel.N is { } n) _points = n;
+            if (sel.T is { } t) _thickness = t;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnColorPicked(string hex)
+    {
+        await SetColor(hex);
+        await SelectTool(_prevTool);
+    }
+
+    [JSInvokable]
+    public async Task OnHotkeyTool(string tool)
+    {
+        await SelectTool(tool);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Call(string method, params object?[] args)
+    {
+        if (_ready) await _module!.InvokeVoidAsync("call", [_editorId, method, .. args]);
+    }
+
+    private Task Opt(string name, object value) => Call("setOption", name, value);
+
+    private async Task SelectTool(string id)
+    {
+        if (id == "pick" && _tool != "pick") _prevTool = _tool;
+        _tool = id;
+        _selType = "";
+        await Call("setTool", id);
+    }
+
+    private async Task SetColor(string hex)
+    {
+        _color = hex;
+        if (!Palette.Any(p => p.Hex == hex) && !_recent.Contains(hex))
+        {
+            _recent.Insert(0, hex);
+            if (_recent.Count > 8) _recent.RemoveAt(_recent.Count - 1);
+        }
+        await Opt("color", hex);
+    }
+
+    private Task OnCustomColor(ChangeEventArgs e) => SetColor(e.Value?.ToString() ?? _color);
+
+    private Task SetWidth(int v) { _width = v; return Opt("width", v); }
+    private Task SetFilled(bool v) { _filled = v; return Opt("filled", v); }
+    private Task SetPoints(int v) { _points = v; return Opt("n", v); }
+    private Task SetThickness(int v) { _thickness = v; return Opt("t", v); }
+    private Task SetTolerance(int v) { _tolerance = v; return Opt("tol", v); }
+    private Task SetGrid(bool v) { _grid = v; return Opt("grid", v); }
+    private Task SetSnap(bool v) { _snap = v; return Opt("snap", v); }
+    private Task SetConstrain(bool v) { _constrain = v; return Opt("constrain", v); }
+    private Task SetGridDiv(int v) { _gridDiv = v; return Opt("div", v); }
+    private void SetStretch(bool v) => _stretch = v;
+
+    private Task ApplyRatio(double w, double h)
+    {
+        _ratioW = w;
+        _ratioH = h;
+        return Call("setRatio", w, h, _stretch);
+    }
+
+    private Task ApplyPreset(RatioPreset p)
+    {
+        _customRatio = false;
+        return ApplyRatio(p.W, p.H);
+    }
+
+    private Task ToggleCustomRatio()
+    {
+        _customRatio = !_customRatio;
+        return Task.CompletedTask;
+    }
+
+    private Task SwapRatio() => ApplyRatio(_ratioH, _ratioW);
+    private Task SetRatioW(double v) => ApplyRatio(Math.Clamp(v, 0.1, 100), _ratioH);
+    private Task SetRatioH(double v) => ApplyRatio(_ratioW, Math.Clamp(v, 0.1, 100));
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_ready)
+            {
+                _ready = false;
+                await _module!.InvokeVoidAsync("call", _editorId, "dispose");
+            }
+            if (_module is not null) await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        _self?.Dispose();
+    }
+}

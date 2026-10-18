@@ -128,3 +128,22 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+/* Drawing editor (Components/DrawingCanvas.razor, wwwroot/js/drawing.js) */
+.de { max-width: 960px; margin: 0 auto; }
+.de-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 6px; }
+.de-group { display: flex; align-items: center; gap: 2px; padding-right: 8px; border-right: 1px solid var(--mud-palette-lines-default); }
+.de-group:last-child { border-right: none; }
+.de-wrapgroup { flex-wrap: wrap; gap: 4px; border-right: none; }
+.de-zoom { min-width: 2.6em; text-align: center; }
+.de-label { font-weight: 500; }
+.de-colors { align-items: flex-start; }
+.de-swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.de-swatch { width: 24px; height: 24px; padding: 0; border-radius: 4px; border: 1px solid rgba(0, 0, 0, .35); cursor: pointer; }
+.de-swatch.de-active { outline: 3px solid var(--mud-palette-primary); outline-offset: 1px; }
+.de-custom { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; cursor: pointer; }
+.de-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.de-opt { min-width: 120px; }
+.de-opt-wide { min-width: 170px; flex: 1 1 170px; max-width: 280px; }
+.de-num { width: 90px; }
+.de-hint { display: block; margin-bottom: 6px; opacity: .75; }
+.de-host { width: 100%; }
